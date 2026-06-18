@@ -11,7 +11,7 @@ def build_local_gaged(ctx, start, end):
 
     for _, r in subset.iterrows():
         ws_id = r["WS_ID"]
-        estuary = r["ESTUARY"]
+        estuary = r["Estuary"]
         source = r["G_SOURCE"]
         gage_id = r["GAGE_ID"]
         special = r["SPECIAL_T"]
@@ -28,7 +28,7 @@ def build_local_gaged(ctx, start, end):
         df["id"] = ws_id
         df["id_type"] = "watershed"
         df["estuary"] = estuary
-        df["component"] = "gaged_local"
+        df["component"] = "gaged"
         df["source"] = source
         df["flow_role"] = "adjusted" if special else "direct"
         df["count_in_basin_sum"] = 1
