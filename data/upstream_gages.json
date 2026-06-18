@@ -1,0 +1,124 @@
+{
+  "sabine": [
+    {
+      "component_id": "sabine_mainstem",
+      "source": "usgs",
+      "gage_id": "08030500",
+      "label": "Sabine River upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    },
+    {
+      "component_id": "neches_mainstem",
+      "source": "usgs",
+      "gage_id": "08041000",
+      "label": "Neches River upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    },
+    {
+      "component_id": "village_creek_mainstem",
+      "source": "usgs",
+      "gage_id": "08041500",
+      "label": "Village Creek upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    }
+  ],
+  "brazos": [
+    {
+      "component_id": "brazos_mainstem",
+      "source": "usgs",
+      "gage_id": "08116650",
+      "label": "Brazos River upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    }
+  ],
+  "san_bernard": [
+    {
+      "component_id": "san_bernard_mainstem",
+      "source": "usgs",
+      "gage_id": "08117500",
+      "label": "San Bernard River upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    }
+  ],
+  "matagorda": [
+    {
+      "component_id": "colorado_upstream",
+      "source": "usgs",
+      "gage_id": "08162000",
+      "label": "Colorado River at Wharton upstream inflow proxy",
+      "special": "colorado_upstream_proxy",
+      "active_from": null,
+      "active_to": null
+    },
+    {
+      "component_id": "lake_texana_release",
+      "source": "lnra",
+      "gage_id": "08164525",
+      "label": "Lake Texana release",
+      "special": "lake_texana",
+      "active_from": null,
+      "active_to": null
+    }
+  ],
+  "guadalupe": [
+    {
+      "component_id": "guadalupe_mainstem",
+      "source": "usgs",
+      "gage_id": "08176500",
+      "label": "Guadalupe River upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    },
+    {
+      "component_id": "san_antonio_mainstem",
+      "source": "usgs",
+      "gage_id": "08188500",
+      "label": "San Antonio River upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    }
+  ],
+  "nueces": [
+    {
+      "component_id": "nueces_mainstem",
+      "source": "usgs",
+      "gage_id": "08211000",
+      "label": "Nueces River upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    }
+  ],
+  "laguna_madre": [
+    {
+      "component_id": "petronila_mainstem",
+      "source": "usgs",
+      "gage_id": "08212820",
+      "label": "Petronila Creek upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    },
+    {
+      "component_id": "san_fernando_mainstem",
+      "source": "usgs",
+      "gage_id": "08211900",
+      "label": "San Fernando Creek upstream inflow",
+      "special": null,
+      "active_from": null,
+      "active_to": null
+    }
+  ]
+}
