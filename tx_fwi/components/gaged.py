@@ -15,14 +15,17 @@ class USGSGaged(Component):
 
         # WS registry: you will maintain this file, replacing the hard-coded dicts in the script [6](https://twdb-my.sharepoint.com/personal/kim_karimi_twdb_texas_gov/Documents/Microsoft%20Copilot%20Chat%20Files/formatting.py)
         # Expected columns: ws_id, estuary, usgs_site_id
-        reg = pd.read_csv(self.ctx.ws_registry_path, dtype={"ws_id": str, "usgs_site_id": str})
-        reg = reg.dropna(subset=["usgs_site_id"])
+        watersheds = gpd.read_file(self.ctx.watershed_path)
+        reg = watersheds.dropna(subset=["USGS_ID"])
+        
 
         frames = []
         for _, row in reg.iterrows():
-            site = row["usgs_site_id"].strip()
-            ws_id = row["ws_id"]
-            estuary = row["estuary"]
+            site = row["USGS_ID"]
+            ws_id = str(row["WS_ID"])
+            estuary = row["Estuary"]
+
+
 
             s = fetch_usgs_discharge_daily(site, start=start, end=end)
             if s.empty:
