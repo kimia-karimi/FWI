@@ -1,11 +1,11 @@
 from pathlib import Path
 from tx_fwi.storage import Storage
 from tx_fwi.components.base import RunContext
-from tx_fwi.components.gaged_usgs import USGSGaged
+from tx_fwi.components.gaged import USGSGaged
 from tx_fwi.components.diversion import Diversion
 
-ROOT = Path(r"T:\CoastalScience\Data\Hydrology\fwi_master\data")
-WS_REGISTRY = str(Path(r"T:\CoastalScience\Data\Hydrology\fwi_master\ws_registry.csv"))
+ROOT = Path(r"T:\\\\CoastalScience\\Data\\Hydrology\\fwi_master\\data")
+WS_REGISTRY = str(Path(r"T:\\\\CoastalScience\\Data\\Hydrology\\fwi_master\\watersheds\\watersheds_registry.shp"))
 
 def main():
     storage = Storage(ROOT)
