@@ -20,7 +20,7 @@ from tx_fwi.components.gaged import LocalGagedComponent
 DEFAULT_ROOT = Path(r"\\\\T:\\CoastalScience\\Data\\Hydrology\\fwi_master")
 
 DEFAULT_WATERSHED_SHP = (
-    DEFAULT_ROOT / "watersheds/watersheds_registry.shp"
+    DEFAULT_ROOT / "watersheds" / "watersheds_registry.shp"
 )
 
 DEFAULT_UPSTREAM_JSON = (
