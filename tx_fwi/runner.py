@@ -17,7 +17,7 @@ from tx_fwi.components.gaged import LocalGagedComponent
 # ------------------------------------------------------------------
 # DEFAULT PATHS (UNC-friendly)
 # ------------------------------------------------------------------
-DEFAULT_ROOT = Path(r"\\\\fileserver\\CoastalScience\\Data\\Hydrology\\fwi_master")
+DEFAULT_ROOT = Path(r"\\\\T:\\CoastalScience\\Data\\Hydrology\\fwi_master")
 
 DEFAULT_WATERSHED_SHP = (
     DEFAULT_ROOT / "watersheds/watersheds_registry.shp"
