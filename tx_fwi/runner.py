@@ -9,14 +9,9 @@ from tx_fwi.storage import Storage
 from tx_fwi.registry import Registry
 from tx_fwi.components.base import RunContext
 
-<<<<<<< HEAD
-    start_local = ctx.storage.get_watermark("gaged") or pd.Timestamp("2015-01-01")
-    start_upstream = ctx.storage.get_watermark("gaged_upstream") or pd.Timestamp("2015-01-01")
-=======
 # Components
 from tx_fwi.components.gaged_local import LocalGagedComponent
 from tx_fwi.components.gaged_upstream import UpstreamGagedComponent
->>>>>>> 9ee753899625a9a4b6a53ac5d8cccaf8bbccc73e
 
 
 # ------------------------------------------------------------------
@@ -32,11 +27,6 @@ DEFAULT_UPSTREAM_JSON = (
     DEFAULT_ROOT / "upstream_gages.json"
 )
 
-<<<<<<< HEAD
-    ctx.storage.set_watermark("gaged", df_local["date"].max())
-    ctx.storage.set_watermark("gaged_upstream", df_upstream["date"].max())
-=======
->>>>>>> 9ee753899625a9a4b6a53ac5d8cccaf8bbccc73e
 
 # ------------------------------------------------------------------
 # CONTEXT BUILDER
