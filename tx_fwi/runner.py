@@ -10,7 +10,7 @@ from tx_fwi.registry import Registry
 from tx_fwi.components.base import RunContext
 
 # Components
-from tx_fwi.components.gaged_local import LocalGagedComponent
+from tx_fwi.components.gaged import LocalGagedComponent
 from tx_fwi.components.gaged_upstream import UpstreamGagedComponent
 
 
