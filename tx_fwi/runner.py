@@ -17,10 +17,10 @@ from tx_fwi.components.gaged_upstream import UpstreamGagedComponent
 # ------------------------------------------------------------------
 # DEFAULT PATHS (UNC-friendly)
 # ------------------------------------------------------------------
-DEFAULT_ROOT = Path(r"\\fileserver\CoastalScience\Data\Hydrology\fwi_master")
+DEFAULT_ROOT = Path(r"\\\\fileserver\\CoastalScience\\Data\\Hydrology\\fwi_master")
 
 DEFAULT_WATERSHED_SHP = (
-    DEFAULT_ROOT / "coastal_watersheds_registry.shp"
+    DEFAULT_ROOT / "watersheds/watersheds_registry.shp"
 )
 
 DEFAULT_UPSTREAM_JSON = (
