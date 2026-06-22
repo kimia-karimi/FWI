@@ -1,7 +1,7 @@
 # tx_fwi/components/gaged_usgs.py
 import pandas as pd
 from .base import Component
-from ..sources.usgs import fetch_usgs_discharge_daily
+from ..sources.usgs import fetch_usgs_daily_cfs
 
 class USGSGaged(Component):
     name = "gaged_usgs"
