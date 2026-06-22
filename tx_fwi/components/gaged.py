@@ -1,39 +1,45 @@
-# components/gaged_local.py
-
+# tx_fwi/components/gaged_usgs.py
 import pandas as pd
+from .base import Component
+from ..sources.usgs import fetch_usgs_discharge_daily
 
-def build_local_gaged(ctx, start, end):
+class USGSGaged(Component):
+    name = "gaged_usgs"
 
-    gdf = ctx.registry
-    rows = []
+    def update(self) -> pd.DataFrame:
+        # Watermark = last processed date for this component
+        wm = self.ctx.storage.get_watermark(self.name, default="2015-01-01")
+        start = (wm + pd.Timedelta(days=1)) if wm is not None else pd.Timestamp("2015-01-01")
 
-    subset = gdf[gdf["HAS_GAGED"] == 1]
+        end = pd.to_datetime(self.ctx.end_date).normalize() if self.ctx.end_date else pd.Timestamp.utcnow().normalize()
 
-    for _, r in subset.iterrows():
-        ws_id = r["WS_ID"]
-        estuary = r["Estuary"]
-        source = r["G_SOURCE"]
-        gage_id = r["GAGE_ID"]
-        special = r["SPECIAL_T"]
+        # WS registry: you will maintain this file, replacing the hard-coded dicts in the script [6](https://twdb-my.sharepoint.com/personal/kim_karimi_twdb_texas_gov/Documents/Microsoft%20Copilot%20Chat%20Files/formatting.py)
+        # Expected columns: ws_id, estuary, usgs_site_id
+        reg = pd.read_csv(self.ctx.ws_registry_path, dtype={"ws_id": str, "usgs_site_id": str})
+        reg = reg.dropna(subset=["usgs_site_id"])
 
-        # --- fetch ---
-        s = fetch_local(source, gage_id, start, end, special)
+        frames = []
+        for _, row in reg.iterrows():
+            site = row["usgs_site_id"].strip()
+            ws_id = row["ws_id"]
+            estuary = row["estuary"]
 
-        if s.empty:
-            continue
+            s = fetch_usgs_discharge_daily(site, start=start, end=end)
+            if s.empty:
+                continue
 
-        df = s.reset_index()
-        df.columns = ["date","value_afday"]
+            df = s.reset_index()
+            df.columns = ["date", "value_afday"]
+            df["ws_id"] = ws_id
+            df["estuary"] = estuary
+            df["component"] = self.name
+            df["source"] = "USGS"
+            frames.append(df)
 
-        df["id"] = ws_id
-        df["id_type"] = "watershed"
-        df["estuary"] = estuary
-        df["component"] = "gaged"
-        df["source"] = source
-        df["flow_role"] = "adjusted" if special else "direct"
-        df["count_in_basin_sum"] = 1
-        df["note"] = special
+        out = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
-        rows.append(df)
+        # Update watermark to the max date we successfully produced
+        if not out.empty:
+            self.ctx.storage.set_watermark(self.name, out["date"].max())
 
-    return pd.concat(rows)
+        return out[["date", "ws_id", "estuary", "component", "value_afday", "source"]]
