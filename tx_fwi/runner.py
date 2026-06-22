@@ -17,7 +17,7 @@ from tx_fwi.components.gaged import LocalGagedComponent
 # ------------------------------------------------------------------
 # DEFAULT PATHS (UNC-friendly)
 # ------------------------------------------------------------------
-DEFAULT_ROOT = Path(r"\\T:\CoastalScience\Data\Hydrology\fwi_master")
+DEFAULT_ROOT = Path(r"T:\CoastalScience\Data\Hydrology\fwi_master")
 
 DEFAULT_WATERSHED_SHP = (
     DEFAULT_ROOT / "watersheds" / "watersheds_registry.shp"
@@ -26,7 +26,7 @@ DEFAULT_WATERSHED_SHP = (
 DEFAULT_UPSTREAM_JSON = (
     DEFAULT_ROOT / "upstream_gages.json"
 )
-print(Path(DEFAULT_WATERSHED_SHP).exists())
+#print(Path(DEFAULT_WATERSHED_SHP).exists())
 
 # ------------------------------------------------------------------
 # CONTEXT BUILDER
