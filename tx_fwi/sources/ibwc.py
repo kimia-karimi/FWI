@@ -61,8 +61,8 @@ def fetch_ibwc_daily_rounded_cfs(station_id: str, start, end) -> pd.Series:
         return pd.Series(dtype="float64", name=station_id)
 
     date_col = next((c for c in df.columns if "date" in c.lower() or "time" in c.lower()), df.columns[0])
-    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-
+    df[date_col] = pd.to_datetime(df[date_col], errors="coerce", infer_datetime_format=True)
+    
     numeric_candidates = []
     for c in df.columns:
         if c == date_col:
