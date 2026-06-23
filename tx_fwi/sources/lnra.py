@@ -34,7 +34,7 @@ def load_lake_texana_afday(start=None, end=None) -> pd.Series:
         sig_key = f"{sig['name']}|{sig['size']}|{sig['mtime']}"
 
         if ledger.get(sig_key):
-            continue  # ✅ skip old PDFs
+            continue  # skip old PDFs
 
         print(f"[Lake Texana] Processing NEW PDF: {p.name}")
 
