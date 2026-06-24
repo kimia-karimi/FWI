@@ -4,50 +4,11 @@ import io
 import time
 import requests
 import pandas as pd
-#from tx_fwi.transforms.units import cfs_to_afday
-#from tx_fwi.transforms.temporal import normalize_daily_series
-
-from __future__ import annotations
-import pandas as pd
-
-
-def normalize_daily_series(series: pd.Series, start=None, end=None) -> pd.Series:
-    """
-    Normalize a time-indexed Series to daily frequency.
-
-    Parameters
-    ----------
-    series : pandas.Series
-        Index must be datetime-like; values are numeric.
-    start, end : optional
-        Optional daily date bounds.
-    """
-    if series is None or series.empty:
-        return pd.Series(dtype="float64")
-
-    s = series.copy()
-    s.index = pd.to_datetime(s.index).normalize()
-    s = pd.to_numeric(s, errors="coerce")
-    s = s.groupby(level=0).mean().sort_index()
-
-    if start is not None or end is not None:
-        start = pd.to_datetime(start).normalize() if start is not None else s.index.min()
-        end = pd.to_datetime(end).normalize() if end is not None else s.index.max()
-        full = pd.date_range(start, end, freq="D")
-        s = s.reindex(full)
-
-    return s
-
+from tx_fwi.transforms.units import cfs_to_afday
+from tx_fwi.transforms.temporal import normalize_daily_series
 CFS_TO_AFD = 1.983471
 MGD_TO_AFD = 3.06888328
 INCH_TO_FEET = 1.0 / 12.0
-
-
-def cfs_to_afday(value):
-    """Convert cubic feet per second to acre-feet per day."""
-    return value * CFS_TO_AFD
-
-
 
 EXPORT_ENDPOINT = "https://waterdata.ibwc.gov/AQWebportal/Export/DataSet"
 HTTP_TIMEOUT = 60
