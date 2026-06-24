@@ -76,7 +76,6 @@ def build_ibwc_params(station_id: str, start, end) -> dict:
         "_": str(int(time.time() * 1000)),
     }
 
-import zipfile
 # ------------------------------------------------------------------
 def fetch_ibwc_daily_rounded_cfs(station_id: str, start, end) -> pd.Series:
 
