@@ -88,3 +88,6 @@ def fetch_ibwc_daily_rounded_afday(station_id: str, start, end) -> pd.Series:
     out = cfs_to_afday(s)
     out.name = station_id
     return out
+
+s = fetch_ibwc_daily_rounded_afday("2023-01-01", "2025-01-01")
+print(len(s), s.head(), s.tail())
