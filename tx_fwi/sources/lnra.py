@@ -302,5 +302,3 @@ def load_lake_texana_afday(start=None, end=None) -> pd.Series:
 
 
 
-s = load_lake_texana_afday("2023-01-01", "2025-01-01")
-print(len(s), s.head(), s.tail())
