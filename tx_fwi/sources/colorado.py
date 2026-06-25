@@ -105,5 +105,5 @@ def colorado_adjusted_afday(start, end) -> pd.Series:
 from tx_fwi.sources.base import registry
 
 @registry.register(source="usgs", special="colorado_adjusted")
-def colorado_handler(start, end, **kwargs):
+def colorado_handler(start, end, *, site_id=None, meta=None):
     return colorado_adjusted_afday(start, end)
