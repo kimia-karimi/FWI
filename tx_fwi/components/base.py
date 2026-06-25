@@ -1,8 +1,14 @@
 # tx_fwi/components/base.py
 from __future__ import annotations
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, Tuple, Any
 
 SourceKey = Tuple[str | None, str | None]
+
+def _norm(x):
+    if x is None:
+        return None
+    return str(x).strip().lower()
+
 
 
 class SourceRegistry:
@@ -15,19 +21,19 @@ class SourceRegistry:
 
     def register(self, source: str | None, special: str | None):
         def decorator(func: Callable):
-            key = (source, special)
+            key = (_norm(source), _norm(special))
             self._registry[key] = func
             return func
         return decorator
 
     def get(self, source: str | None, special: str | None):
-        key = (source, special)
+        key = (_norm(source), _norm(special))
 
         # priority order
         if key in self._registry:
             return self._registry[key]
 
-        fallback = (source, None)
+        fallback = (_norm(source), None)
         if fallback in self._registry:
             return self._registry[fallback]
 
