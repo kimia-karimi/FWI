@@ -16,7 +16,7 @@ WHARTON_GAGE = "08162000"
 CUTOFF_DATE = pd.Timestamp("2013-10-01")
 
 CFS_TO_AFD = 1.983471
-LOW_FLOW_THRESHOLD_AFD = 2300 * CFS_TO_AFD  # ✅ correct conversion
+LOW_FLOW_THRESHOLD_AFD = 2300 * CFS_TO_AFD  # conversion
 
 
 # ------------------------------------------------------------------
@@ -67,7 +67,7 @@ def colorado_adjusted_afday(start, end) -> pd.Series:
         return bay_city
 
     # ------------------------------------------------------
-    # ✅ ALIGN TIMESERIES
+    # ALIGN TIMESERIES
     # ------------------------------------------------------
     df = pd.concat(
         [
@@ -78,12 +78,12 @@ def colorado_adjusted_afday(start, end) -> pd.Series:
     )
 
     # ------------------------------------------------------
-    # ✅ RULE 1: Fill missing Bay City
+    #  RULE 1: Fill missing Bay City
     # ------------------------------------------------------
     df["bay_city"] = df["bay_city"].fillna(df["wharton"])
 
     # ------------------------------------------------------
-    # ✅ RULE 2: Low-flow replacement (after cutoff)
+    #  RULE 2: Low-flow replacement (after cutoff)
     # ------------------------------------------------------
     mask = (
         (df.index > CUTOFF_DATE) &
@@ -93,7 +93,7 @@ def colorado_adjusted_afday(start, end) -> pd.Series:
     df.loc[mask, "bay_city"] = df.loc[mask, "wharton"]
 
     # ------------------------------------------------------
-    # ✅ FINAL SERIES
+    #  FINAL SERIES
     # ------------------------------------------------------
     s = df["bay_city"].copy()
 
