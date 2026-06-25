@@ -67,11 +67,16 @@ def lake_houston_afday(start, end) -> pd.Series:
     # preserve missing
     s[gh.isna()] = np.nan
 
-    # ✅ convert to AFD
+    # convert to AFD
     s = s * CFS_TO_AFD
 
     s = s.dropna().sort_index()
     s.name = "lake_houston"
 
     return normalize_daily_series(s, start=start, end=end)
+    
+from tx_fwi.sources.base import registry
 
+@registry.register(source="usgs", special="lake_houston")
+def lake_houston_handler(start, end, **kwargs):
+    return lake_houston_afday(start, end)
