@@ -99,5 +99,5 @@ def fetch_usgs_daily_afday(site_id: str, start, end) -> pd.Series:
 from tx_fwi.sources.base import registry
 
 @registry.register(source="usgs", special=None)
-def usgs_gage_handler(start, end, *, site_id):
+def usgs_gage_handler(start, end, *, site_id=None, meta=None):
     return fetch_usgs_daily_afday(site_id, start, end)
