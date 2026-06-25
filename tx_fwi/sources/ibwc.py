@@ -38,7 +38,7 @@ def build_ibwc_params(station_id: str, start, end) -> dict:
     }
 
 # ------------------------------------------------------------------
-def fetch_ibwc_daily_rounded_cfs(station_id: str, start, end) -> pd.Series:
+def fetch_ibwc_daily_rounded_afd(station_id: str, start, end) -> pd.Series:
 
     params = build_ibwc_params(station_id, start, end)
 
@@ -98,7 +98,7 @@ def fetch_ibwc_daily_rounded_cfs(station_id: str, start, end) -> pd.Series:
         pd.to_numeric(df[value_col], errors="coerce").values,
         index=df[date_col],
     )
-
+    s = s * CFS_TO_AFD
     s = s.dropna().sort_index()
     s.name = station_id
 
