@@ -78,5 +78,5 @@ def lake_houston_afday(start, end) -> pd.Series:
 from tx_fwi.sources.base import registry
 
 @registry.register(source="usgs", special="lake_houston")
-def lake_houston_handler(start, end, **kwargs):
+def lake_houston_handler(start, end, *, site_id=None, meta=None):
     return lake_houston_afday(start, end)
