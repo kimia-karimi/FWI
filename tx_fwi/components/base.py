@@ -1,12 +1,6 @@
 # tx_fwi/components/base.py
 from __future__ import annotations
-
-
 from typing import Callable, Dict, Tuple
-
-
-SourceKey = Tuple[str | None, str | None]
-
 
 SourceKey = Tuple[str | None, str | None]
 
@@ -40,6 +34,5 @@ class SourceRegistry:
         raise KeyError(f"No handler for source={source}, special={special}")
 
 
-# ✅ global singleton
+#  global singleton
 registry = SourceRegistry()
-``
