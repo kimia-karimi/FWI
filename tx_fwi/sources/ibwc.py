@@ -103,6 +103,12 @@ def fetch_ibwc_daily_rounded_cfs(station_id: str, start, end) -> pd.Series:
     s.name = station_id
 
     return normalize_daily_series(s, start=start, end=end)
+    
+from tx_fwi.sources.base import registry
+
+@registry.register(source="ibwc", special=None)
+def ibwc_handler(start, end, *, site_id):
+    return fetch_ibwc_daily_rounded_afday(site_id, start, end)
 
 
 
