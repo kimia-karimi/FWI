@@ -38,7 +38,7 @@ def build_ibwc_params(station_id: str, start, end) -> dict:
     }
 
 # ------------------------------------------------------------------
-def fetch_ibwc_daily_rounded_afd(station_id: str, start, end) -> pd.Series:
+def fetch_ibwc_daily_rounded_afday(station_id: str, start, end) -> pd.Series:
 
     params = build_ibwc_params(station_id, start, end)
 
@@ -92,7 +92,7 @@ def fetch_ibwc_daily_rounded_afd(station_id: str, start, end) -> pd.Series:
         return pd.Series(dtype="float64", name=station_id)
 
     # ------------------------------------------------------
-    # ✅ build series
+    #  build series
     # ------------------------------------------------------
     s = pd.Series(
         pd.to_numeric(df[value_col], errors="coerce").values,
