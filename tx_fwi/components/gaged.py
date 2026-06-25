@@ -4,10 +4,8 @@ from __future__ import annotations
 import pandas as pd
 
 from tx_fwi.components.base import RunContext
-from tx_fwi.sources.usgs import fetch_usgs_daily_afday
-from tx_fwi.sources.ibwc import fetch_ibwc_daily_rounded_afday
-from tx_fwi.sources.lnra import load_lake_texana_afday
-from tx_fwi.sources.colorado import colorado_adjusted_afday
+
+from tx_fwi.sources.base import registry
 
 
 REQUIRED_OUT_COLS = [
@@ -24,6 +22,11 @@ REQUIRED_OUT_COLS = [
 ]
 
 
+def _normalize_key(x):
+    if x is None or pd.isna(x):
+        return None
+    return str(x).strip().lower()
+
 class LocalGagedComponent:
     name = "gaged"
 
@@ -31,50 +34,30 @@ class LocalGagedComponent:
         self.ctx = ctx
 
     # ----------------------------------------------------------
-    # ✅ CENTRALIZED FETCH LOGIC
+    # FETCH using plugin registry
     # ----------------------------------------------------------
-    def fetch(self, source, gage_id, start, end, *, special=None):
-        source = str(source).lower()
-        special = None if pd.isna(special) else str(special).lower()
+    
+def fetch(self, source, gage_id, start, end, *, special=None):
 
-        # ==========================================================
-        # ✅ SPECIAL CASES FIRST (highest priority)
-        # ==========================================================
+        source_norm = _normalize_key(source)
+        special_norm = _normalize_key(special)
 
-        #  Colorado adjusted flow
-        if special == "colorado_adjusted":
-            print(f"[Local] Colorado adjusted {gage_id}")
+        try:
+            handler = registry.get(source_norm, special_norm)
+        except KeyError:
+            raise NotImplementedError(
+                f"No handler registered for source={source_norm}, special={special_norm}"
+            )
 
-            return colorado_adjusted_afday(start, end)
+        print(f"[Local] source={source_norm}, special={special_norm}, gage={gage_id}")
 
-        #  Lake Houston special
-        if special == "lake_houston":
-            print(f"[Local] Lake Houston {gage_id}")
+        #  unified calling convention
+        return handler(
+            start=start,
+            end=end,
+            site_id=str(gage_id) if gage_id else None,
+        )
 
-            # If no custom math, just return USGS
-            return fetch_usgs_daily_afday(gage_id, start, end)
-
-        #  Lake Texana (LNRA file)
-        if special == "lake_texana":
-            print("[Local] Lake Texana (LNRA file)")
-
-            return load_lake_texana_afday(start=start, end=end)
-
-        # ==========================================================
-        # ✅ NORMAL GAGES (fallback)
-        # ==========================================================
-
-        # ✅ USGS
-        if source == "usgs":
-            print(f"[Local] USGS {gage_id}")
-            return fetch_usgs_daily_afday(gage_id, start, end)
-
-        # ✅ IBWC
-        if source == "ibwc":
-            print(f"[Local] IBWC {gage_id}")
-            return fetch_ibwc_daily_rounded_afday(gage_id, start, end)
-
-        raise NotImplementedError(f"Unsupported local gage source: {source}")
 
     # ----------------------------------------------------------
     def build(self, start, end) -> pd.DataFrame:
