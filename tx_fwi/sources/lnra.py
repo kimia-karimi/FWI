@@ -301,4 +301,8 @@ def load_lake_texana_afday(start=None, end=None) -> pd.Series:
     return normalize_daily_series(s, start=start, end=end)
 
 
+from tx_fwi.sources.base import registry
 
+@registry.register(source="lnra", special="lake_texana")
+def lake_texana_handler(start, end, **kwargs):
+    return load_lake_texana_afday(start, end)
