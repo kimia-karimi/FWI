@@ -74,7 +74,7 @@ def fetch_ibwc_daily_rounded_afday(station_id: str, start, end) -> pd.Series:
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
 
     # ------------------------------------------------------
-    # ✅ detect value column
+    # detect value column
     # ------------------------------------------------------
     value_col = None
     for c in df.columns:
@@ -107,7 +107,7 @@ def fetch_ibwc_daily_rounded_afday(station_id: str, start, end) -> pd.Series:
 from tx_fwi.sources.base import registry
 
 @registry.register(source="ibwc", special=None)
-def ibwc_handler(start, end, *, site_id):
+def ibwc_handler(start, end, *, site_id=None, meta=None):
     return fetch_ibwc_daily_rounded_afday(site_id, start, end)
 
 
