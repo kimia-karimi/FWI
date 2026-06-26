@@ -37,7 +37,7 @@ class LocalGagedComponent:
     # FETCH using plugin registry
     # ----------------------------------------------------------
     
-def fetch(self, source, gage_id, start, end, *, special=None):
+def fetch(self, source, gage_id, start, end, *, special=None, meta=None):
 
         source_norm = _normalize_key(source)
         special_norm = _normalize_key(special)
@@ -56,6 +56,7 @@ def fetch(self, source, gage_id, start, end, *, special=None):
             start=start,
             end=end,
             site_id=str(gage_id) if gage_id else None,
+            meta=meta
         )
 
 
@@ -74,6 +75,7 @@ def fetch(self, source, gage_id, start, end, *, special=None):
             source = r.get("G_SOURCE")
             gage_id = r.get("GAGE_ID")
             special = r.get("SPECIAL_T")
+            meta=r 
 
             if pd.isna(source) or pd.isna(gage_id):
                 continue
