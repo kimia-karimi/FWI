@@ -81,7 +81,7 @@ class DiversionflowComponent:
         )
 
         # spatial join to watershed registry
-        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "estuary", "geometry"]])
+        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "Estuary", "geometry"]])
 
         gdf_points = gpd.GeoDataFrame(
             wr_merged,
@@ -96,13 +96,13 @@ class DiversionflowComponent:
 
         wsd_wr = (joined
             .drop(columns=["geometry", "LAT_DD", "LONG_DD"], errors="ignore")
-            .groupby(["WS_ID", "ESTUARY", "YEAR"], as_index=False)[monthly_cols]
+            .groupby(["WS_ID", "Estuary", "YEAR"], as_index=False)[monthly_cols]
             .sum(numeric_only=True)
         )
 
         # reshape to long
         df_long = wsd_wr.melt(
-            id_vars=["WS_ID", "ESTUARY", "YEAR"],
+            id_vars=["WS_ID", "Estuary", "YEAR"],
             value_vars=monthly_cols,
             var_name="month_name",
             value_name="diversion"
@@ -129,7 +129,7 @@ class DiversionflowComponent:
 
         daily["id"] = daily["WS_ID"]
         daily["id_type"] = "watershed"
-        daily["estuary"] = daily["ESTUARY"]
+        daily["estuary"] = daily["Estuary"]
 
         daily["component"] = self.name
         daily["source"] = "TCEQ"
