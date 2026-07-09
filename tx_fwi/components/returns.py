@@ -187,7 +187,7 @@ class ReturnFlowComponent:
         watersheds = (
             self.ctx.registry
             .load_watersheds()
-            [["WS_ID", "ESTUARY", "geometry"]]
+            [["WS_ID", "estuary", "geometry"]]
         )
 
         watersheds = watersheds.to_crs(
