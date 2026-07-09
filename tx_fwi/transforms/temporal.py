@@ -18,15 +18,28 @@ def normalize_daily_series(series: pd.Series, start=None, end=None) -> pd.Series
         return pd.Series(dtype="float64")
 
     s = series.copy()
-    s.index = pd.to_datetime(s.index).normalize()
+    idx = pd.to_datetime(s.index)
+    #Remove timezone if present
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+
+    s.index = idx.normalize()
     s = pd.to_numeric(s, errors="coerce")
     s = s.groupby(level=0).mean().sort_index()
 
-    if start is not None or end is not None:
-        start = pd.to_datetime(start).normalize() if start is not None else s.index.min()
-        end = pd.to_datetime(end).normalize() if end is not None else s.index.max()
-        full = pd.date_range(start, end, freq="D")
-        s = s.reindex(full)
+    
+        # normalize the bounds 
+    if start is not None:
+        start = pd.Timestamp(start)
+        if start.tzinfo is not None:
+            start = start.tz_localize(None)
+        start = start.normalize()
+    
+    if end is not None:
+        end = pd.Timestamp(end)
+        if end.tzinfo is not None:
+            end = end.tz_localize(None)
+    end = end.normalize()
 
     return s
 
