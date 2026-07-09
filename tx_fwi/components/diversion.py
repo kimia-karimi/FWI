@@ -81,7 +81,7 @@ class DiversionflowComponent:
         )
 
         # spatial join to watershed registry
-        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "ESTUARY", "geometry"]])
+        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "estuary", "geometry"]])
 
         gdf_points = gpd.GeoDataFrame(
             wr_merged,
