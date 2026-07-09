@@ -38,15 +38,15 @@ class DiversionflowComponent:
         while True:
             params = {"where": where, "outFields": out_fields, "f": "json",
                   "resultOffset": offset, "resultRecordCount": batch_size}
-        payload = requests.get(url, params=params, timeout=60).json()
-        batch = payload.get("features", [])
-        feats.extend(batch)
-        if len(batch) < batch_size:
-            break
-        offset += batch_size
-        if len(feats) >= count:
-            break
-    return feats
+            payload = requests.get(url, params=params, timeout=60).json()
+            batch = payload.get("features", [])
+            feats.extend(batch)
+            if len(batch) < batch_size:
+                break
+            offset += batch_size
+            if len(feats) >= count:
+                break
+        return feats
 
 
     def build(self, start, end):
