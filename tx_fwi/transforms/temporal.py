@@ -79,7 +79,7 @@ def expand_monthly_to_daily(
         d = pd.DataFrame({
             "date": dates,
             id_col: str(r[id_col]).zfill(5) if str(r[id_col]).isdigit() else str(r[id_col]),
-            "value_afday": daily_val,
+            "value": daily_val,
         })
         if estuary_col and estuary_col in work.columns:
             d[estuary_col] = r[estuary_col]
