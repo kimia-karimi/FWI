@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import geopandas as gpd
 import requests
-from tx_fwi.transforms.temporal import expand_monthly_to_daily
+from transforms.temporal import expand_monthly_to_daily
 from tx_fwi.components.base import RunContext
 from tx_fwi.sources.base import registry
 from tx_fwi.transforms.units import mgd_to_afday
