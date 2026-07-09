@@ -18,8 +18,7 @@ class Diversion(Component):
         # You’ll likely put these in config.py later.
         rights_url = "https://gisweb.tceq.texas.gov/arcgis/rest/services/WaterRights/WaterRightsViewer/MapServer/13/query"
         points_url = "https://gisweb.tceq.texas.gov/arcgis/rest/services/WaterRights/WaterRightsViewer/MapServer/3/query"
-        watersheds_path = r"T:\CoastalScience\Data\External\Diversion_Return_Flow\Return_Flow\Return_2023\Coastal_watersheds_with_latlong\Coastal_watersheds_with_latlong.shp"  # used in your script [7](https://twdb-my.sharepoint.com/personal/alex_barth_twdb_texas_gov/Documents/Recordings/Estuary%20Science%20Exchange%20(Spring%202026)%20Estimating%20Total%20Suspended%20Solids%20in%20Texas%20Estuarine%20Waters%20Using%20Hyperspectral%20Imaging%20and%20In-situ%20Measurements-20260501_120324-Meeting%20Recording.mp4?web=1)
-
+        watersheds_path = r"T:\CoastalScience\Data\Hydrology\fwi_master\watersheds\watersheds_registry.shp"  
         # ---- fetch rights ----
         rights = _fetch_all_features(rights_url)
         df_rights = pd.DataFrame([f["attributes"] for f in rights])
@@ -34,7 +33,7 @@ class Diversion(Component):
 
         wr_coord = df_rights.merge(df_points[["WR_ID", "LAT_DD", "LONG_DD"]], on="WR_ID", how="left")
 
-        # aggregate same WR_ID/YEAR (your current script does a groupby sum) [7](https://twdb-my.sharepoint.com/personal/alex_barth_twdb_texas_gov/Documents/Recordings/Estuary%20Science%20Exchange%20(Spring%202026)%20Estimating%20Total%20Suspended%20Solids%20in%20Texas%20Estuarine%20Waters%20Using%20Hyperspectral%20Imaging%20and%20In-situ%20Measurements-20260501_120324-Meeting%20Recording.mp4?web=1)
+        # aggregate same WR_ID/YEAR 
         wr_merged = (wr_coord
             .dropna(subset=["WR_ID"])
             .groupby(["WR_ID", "YEAR", "LAT_DD", "LONG_DD"], as_index=False)
@@ -52,7 +51,7 @@ class Diversion(Component):
 
         joined = gpd.sjoin(gdf_points, watersheds, how="inner", predicate="INTERSECTS")
 
-        # monthly columns (matches your script) [7](https://twdb-my.sharepoint.com/personal/alex_barth_twdb_texas_gov/Documents/Recordings/Estuary%20Science%20Exchange%20(Spring%202026)%20Estimating%20Total%20Suspended%20Solids%20in%20Texas%20Estuarine%20Waters%20Using%20Hyperspectral%20Imaging%20and%20In-situ%20Measurements-20260501_120324-Meeting%20Recording.mp4?web=1)
+        # monthly columns 
         monthly_cols = ["JAN_DIV","FEB_DIV","MAR_DIV","APR_DIV","MAY_DIV","JUN_DIV",
                         "JUL_DIV","AUG_DIV","SEPT_DIV","OCT_DIV","NOV_DIV","DEC_DIV"]
 
@@ -74,7 +73,7 @@ class Diversion(Component):
                      "JUL_DIV":7,"AUG_DIV":8,"SEPT_DIV":9,"OCT_DIV":10,"NOV_DIV":11,"DEC_DIV":12}
         df_long["month"] = df_long["month"].map(month_map)
 
-        # expand monthly->daily by days-in-month (your stated rule) [8](https://loop.cloud.microsoft/p/eyJ1IjoiaHR0cHM6Ly90d2RiLnNoYXJlcG9pbnQuY29tL2NvbnRlbnRzdG9yYWdlL0NTUF9iYzEzZjkzZS1mYjM4LTRmM2UtODdiOC04ZjViOWQyNDM4NDU%2FbmF2PWN6MGxNa1pqYjI1MFpXNTBjM1J2Y21GblpTVXlSa05UVUNVMVJtSmpNVE5tT1RObEpUSkVabUl6T0NVeVJEUm1NMlVsTWtRNE4ySTRKVEpFT0dZMVlqbGtNalF6T0RRMUptUTlZaVV5TVZCMmExUjJSR28zVUdzbE1rUklkVWs1WW01VFVUUlNZblpFWkd4R2JsZDRSa2QxTm5nd09IVndjR3RXYmt0VWNrVmhjR0kwVkZOeFJEQkJORVF4Wm5oNGN5Wm1QVEF4UTFOSlJsWldNakpMV2pOVFF6WlFXRFkxUWt4U1R6UXpVMDFGVnpaSVRGY21ZejBsTWtZIn0%3D)
+        # expand monthly->daily by days-in-month 
         daily = expand_monthly_to_daily(
             df_long.rename(columns={"WS_ID":"WS_ID", "YEAR":"YEAR"}),
             year_col="YEAR", month_col="month", value_col="monthly_value", ws_col="WS_ID"
@@ -95,7 +94,7 @@ class Diversion(Component):
 
 
 def _fetch_all_features(url: str, where: str = "1=1", out_fields: str = "*", batch_size: int = 2000):
-    # Your current script already checks expected record count and paginates; this mirrors that approach. [7](https://twdb-my.sharepoint.com/personal/alex_barth_twdb_texas_gov/Documents/Recordings/Estuary%20Science%20Exchange%20(Spring%202026)%20Estimating%20Total%20Suspended%20Solids%20in%20Texas%20Estuarine%20Waters%20Using%20Hyperspectral%20Imaging%20and%20In-situ%20Measurements-20260501_120324-Meeting%20Recording.mp4?web=1)
+    # the script already checks expected record count and paginates; this mirrors that approach.
     count = requests.get(url, params={"where": where, "returnCountOnly": "true", "f": "json"}).json()["count"]
     feats = []
     offset = 0
