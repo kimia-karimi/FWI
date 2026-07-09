@@ -86,7 +86,7 @@ class DiversionflowComponent:
         gdf_points = gpd.GeoDataFrame(
             wr_merged,
             geometry=gpd.points_from_xy(wr_merged["LONG_DD"], wr_merged["LAT_DD"],
-            crs="EPSG:4269"
+            crs="EPSG:4269")
         )
         watersheds = watersheds.to_crs(gdf_points.crs)
 
