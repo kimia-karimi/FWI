@@ -71,7 +71,7 @@ def fetch_ibwc_daily_rounded_afday(station_id: str, start, end) -> pd.Series:
         df.columns[0]
     )
 
-    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+    df[date_col] = pd.to_datetime(df[date_col]).dt.tz_localize(None)
 
     # ------------------------------------------------------
     # detect value column
