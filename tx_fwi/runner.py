@@ -93,7 +93,16 @@ def run_all(start: str | None = None, end: str | None = None):
     n_upstream = comp_upstream.run(start=start_dt, end=end_dt)
 
     print(f"Upstream gaged rows written: {n_upstream:,}")
+    
+    # --------------------------------------------------------------
+    # Component 3: Diversion (system-level)
+    # --------------------------------------------------------------
+    print("\nRunning diversion component...")
 
+    comp_diversion = DiversionComponent(ctx)
+    n_upstream = comp_diversion.run(start=start_dt, end=end_dt)
+
+    print(f"Diversion added: {n_upstream:,}")
     print("\nPipeline complete.")
 
 
