@@ -59,6 +59,10 @@ def fetch_ibwc_daily_rounded_afday(station_id: str, start, end) -> pd.Series:
         return pd.Series(dtype="float64", name=station_id)
 
     df = pd.read_csv(io.StringIO(text), skiprows=4)
+    date_col = df.columns[0]
+    # Remove disclaimer/footer rows
+    df = df[df[date_col].astype(str).str.contains(r"^\d{4}-\d{2}-\d{2}", regex=True)]
+
 
     if df.empty:
         return pd.Series(dtype="float64", name=station_id)
