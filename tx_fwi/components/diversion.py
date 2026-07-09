@@ -103,7 +103,7 @@ class DiversionflowComponent:
         # reshape to long
         df_long = wsd_wr.melt(
             id_vars=["WS_ID", "Estuary", "YEAR"],
-            value_vars=monthly_cols,
+            value_vars=MONTHLY_COLS,
             var_name="month_name",
             value_name="diversion"
         )
