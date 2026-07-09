@@ -27,7 +27,7 @@ MONTH_MAP = {"JAN_DIV":1,"FEB_DIV":2,"MAR_DIV":3,"APR_DIV":4,"MAY_DIV":5,"JUN_DI
 # monthly columns 
 MONTHLY_COLS = list(MONTH_MAP.keys())
 
-class DiversionComponent:
+class DiversionflowComponent:
     name = "diversion"
     def __init__(self, ctx):
         self.ctx = ctx
