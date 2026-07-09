@@ -114,8 +114,7 @@ class DiversionflowComponent:
         # expand monthly->daily by days-in-month 
         daily = expand_monthly_to_daily(
             df_long,
-            year_col="YEAR", month_col="month", value_col="diversion"
-        )
+            year_col="YEAR", month_col="month", value_col="diversion", id_col="WS_ID", estuary_col="Estuary", value_is_monthly_total=False)
         
         if daily.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
