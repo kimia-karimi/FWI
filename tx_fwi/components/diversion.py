@@ -90,7 +90,7 @@ class DiversionflowComponent:
         )
         watersheds = watersheds.to_crs(gdf_points.crs)
 
-        joined = gpd.sjoin(gdf_points, watersheds, how="inner", predicate="INTERSECTS")
+        joined = gpd.sjoin(gdf_points, watersheds, how="inner", predicate="intersects")
         #aggregate by watershed
         
 
