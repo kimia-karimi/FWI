@@ -96,7 +96,7 @@ class DiversionflowComponent:
 
         wsd_wr = (joined
             .drop(columns=["geometry", "LAT_DD", "LONG_DD"], errors="ignore")
-            .groupby(["WS_ID", "Estuary", "YEAR"], as_index=False)[monthly_cols]
+            .groupby(["WS_ID", "Estuary", "YEAR"], as_index=False)
             .sum(numeric_only=True)
         )
 
