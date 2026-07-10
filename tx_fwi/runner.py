@@ -99,10 +99,10 @@ def run_all(start: str | None = None, end: str | None = None):
     # --------------------------------------------------------------
     print("\nRunning diversion component...")
 
-    comp_diversion = DiversionflowComponent(ctx)
-    n_upstream = comp_diversion.run(start=start_dt, end=end_dt)
+    #comp_diversion = DiversionflowComponent(ctx)
+    #n_upstream = comp_diversion.run(start=start_dt, end=end_dt)
 
-    print(f"Diversion added: {n_upstream:,}")
+    #print(f"Diversion added: {n_upstream:,}")
     # --------------------------------------------------------------
     # Component 4: Return 
     # --------------------------------------------------------------
