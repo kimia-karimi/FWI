@@ -156,11 +156,21 @@ class ReturnFlowComponent:
             .str.replace(r"\D+", "", regex=True)
             .str.lstrip("0")
         )
+        
 
         # --------------------------------------------------
         # Load outfalls
         # --------------------------------------------------
-        outfalls = gpd.read_file(OUTFALL_URL)
+        
+        resp = requests.get(
+            OUTFALL_URL,timeout=120,)
+
+        resp.raise_for_status()
+
+        geojson = resp.json()
+
+
+        outfalls = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
 
         outfalls["NPDES_NUM"] = (
             outfalls["NPDES_NUM"]
