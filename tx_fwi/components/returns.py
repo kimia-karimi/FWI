@@ -7,6 +7,7 @@ import requests
 from tx_fwi.components.base import RunContext
 from tx_fwi.sources.base import registry
 from tx_fwi.transforms.units import mgd_to_afday
+import io
 REQUIRED_OUT_COLS = [
     "date",
     "id",
