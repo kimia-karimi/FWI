@@ -238,7 +238,7 @@ class ReturnFlowComponent:
             .groupby(
                 [
                     "WS_ID",
-                    "ESTUARY",
+                    "Estuary",
                     "year",
                     "month",
                 ],
