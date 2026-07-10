@@ -106,7 +106,7 @@ def run_all(start: str | None = None, end: str | None = None):
     # --------------------------------------------------------------
     # Component 4: Return 
     # --------------------------------------------------------------
-    print("\nRunning diversion component...")
+    print("\nRunning return component...")
 
     comp_return = ReturnFlowComponent(ctx)
     n_upstream = comp_return.run(start=start_dt, end=end_dt)
