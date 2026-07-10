@@ -275,7 +275,7 @@ class ReturnFlowComponent:
         # Convert MGD -> AFD
         # --------------------------------------------------
         daily["value_afday"] = mgd_to_afday(
-            daily["value_afday"]
+            daily["value"]
         )
 
         # --------------------------------------------------
