@@ -255,7 +255,7 @@ class ReturnFlowComponent:
                 columns={
                     "FLOW_MGD": "value",
                     "WS_ID": "ws_id",
-                    "ESTUARY": "estuary",
+                    "Estuary": "estuary",
                 }
             ),
             year_col="year",
