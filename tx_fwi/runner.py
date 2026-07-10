@@ -79,20 +79,20 @@ def run_all(start: str | None = None, end: str | None = None):
     # --------------------------------------------------------------
     print("\nRunning local gaged component...")
 
-    comp_local = LocalGagedComponent(ctx)
-    n_local = comp_local.run(start=start_dt, end=end_dt)
+    #comp_local = LocalGagedComponent(ctx)
+    #n_local = comp_local.run(start=start_dt, end=end_dt)
 
-    print(f"Local gaged rows written: {n_local:,}")
+    #print(f"Local gaged rows written: {n_local:,}")
 
     # --------------------------------------------------------------
     # Component 2: Upstream gaged (system-level)
     # --------------------------------------------------------------
     print("\nRunning upstream gaged component...")
 
-    comp_upstream = UpstreamGagedComponent(ctx)
-    n_upstream = comp_upstream.run(start=start_dt, end=end_dt)
+    #comp_upstream = UpstreamGagedComponent(ctx)
+    #n_upstream = comp_upstream.run(start=start_dt, end=end_dt)
 
-    print(f"Upstream gaged rows written: {n_upstream:,}")
+    #print(f"Upstream gaged rows written: {n_upstream:,}")
     
     # --------------------------------------------------------------
     # Component 3: Diversion 
