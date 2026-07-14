@@ -26,6 +26,10 @@ DEFAULT_WATERSHED_SHP = (
 DEFAULT_UPSTREAM_JSON = (
     DEFAULT_ROOT / "upstream_gages.json"
 )
+
+DEFAULT_QUADS_CSV = (
+    DEFAULT_ROOT / "quads.csv"
+)
 print(Path(DEFAULT_WATERSHED_SHP).exists())
 
 # ------------------------------------------------------------------
@@ -35,6 +39,7 @@ def build_context(
     root: Path = DEFAULT_ROOT,
     watershed_shp: Path = DEFAULT_WATERSHED_SHP,
     upstream_json: Path = DEFAULT_UPSTREAM_JSON,
+    quads_csv: Path = DEFAULT_QUADS_CSV,
 ) -> RunContext:
     """
     Initialize storage + registry and wrap in RunContext
@@ -44,6 +49,7 @@ def build_context(
     registry = Registry(
         watershed_shp=watershed_shp,
         upstream_gages_json=upstream_json,
+        quads_csv = quads_csv,
     )
 
     return RunContext(
