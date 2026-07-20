@@ -47,8 +47,8 @@ gdf = gpd.read_file(TWDB_watersheds_filepath)
 #ws_ids = list(gdf["WS_ID"])
 gdf["WS_ID"] = gdf["WS_ID"].astype(str).str.zfill(5)
 
-pcp_output_root = "PCP_Files"
-append_mode = False
+#pcp_output_root = "PCP_Files"
+#append_mode = False
 
 
 # Lookup dict: WS_ID -> estuary
@@ -205,7 +205,8 @@ def month_key_from_pcp_header(line: str) -> str | None:
     return None
 
 
-def existing_pcp_months(path: Path) -> set"""
+def existing_pcp_months(path: Path) -> set:
+    """
     Find existing monthly PCP blocks in an existing PCP file.
     """
     if not path.exists():
@@ -254,7 +255,7 @@ def write_pcp(my_dict):
         def write_pcp_header(WS_ID, dt):
             return concat_str("1", WS_ID.rjust(8, " "), dt.strftime("%Y"), str(int(dt.strftime("%m"))).rjust(2, " "), get_days_in_month(dt))
         WS_ID = str(key).zfill(5)
-        month_key = month_key_from_val_dic*(val_dict)
+        month_key = month_key_from_val_dict(val_dict)
         monthly_precip = 0
         monthly_pcp_entry = ""
         for dt_int, daily_agg_val in val_dict.items():
