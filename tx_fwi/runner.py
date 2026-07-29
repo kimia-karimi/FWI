@@ -14,6 +14,7 @@ from tx_fwi.components.gaged import LocalGagedComponent
 from tx_fwi.components.gaged_upstream import UpstreamGagedComponent
 from tx_fwi.components.diversion import DiversionflowComponent
 from tx_fwi.components.returns import ReturnFlowComponent
+from tx_fwi.components.ungaged import UngagedComponent
 # ------------------------------------------------------------------
 # DEFAULT PATHS (UNC-friendly)
 # ------------------------------------------------------------------
@@ -106,17 +107,28 @@ def run_all(start: str | None = None, end: str | None = None):
     print("\nRunning diversion component...")
 
     comp_diversion = DiversionflowComponent(ctx)
-    n_upstream = comp_diversion.run(start=start_dt, end=end_dt)
+    n_diversion = comp_diversion.run(start=start_dt, end=end_dt)
 
-    print(f"Diversion added: {n_upstream:,}")
+    print(f"Diversion added: {n_diversion:,}")
     # --------------------------------------------------------------
     # Component 4: Return 
     # --------------------------------------------------------------
     print("\nRunning return component...")
 
     comp_return = ReturnFlowComponent(ctx)
-    n_upstream = comp_return.run(start=start_dt, end=end_dt)
+    n_return = comp_return.run(start=start_dt, end=end_dt)
     
+    print(f"Return added: {n_return:,}")
+
+    
+    # --------------------------------------------------------------
+    # Component 5: Ungaged flow 
+    # --------------------------------------------------------------
+    print("\nRunning ungaged flow component...")
+
+    comp_ungaged = UngagedComponent(ctx)
+    n_ungaged = comp_ungaged.run(start=start_dt, end=end_dt)
+    print(f"Ungaged rows added: {n_ungaged:,}")
     print("\nPipeline complete.")
 
 
