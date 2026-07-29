@@ -81,9 +81,9 @@ class Registry:
         return gdf
 
     def load_upstream_gages(self) -> dict:
-        if not self.upstream_gages_json.exists():
+        if not self.upstream_json.exists():
             raise FileNotFoundError(
-                f"Upstream gage config not found: {self.upstream_gages_json}"
+                f"Upstream gage config not found: {self.upstream_json}"
             )
 
-        return json.loads(self.upstream_gages_json.read_text(encoding="utf-8"))
+        return json.loads(self.upstream_json.read_text(encoding="utf-8"))
