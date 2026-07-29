@@ -55,6 +55,7 @@ def build_context(
         watershed_shp=watershed_shp,
         upstream_json=upstream_json,
         quads_csv = quads_csv,
+        txrr_dir=txrr_dir
     )
 
     return RunContext(
