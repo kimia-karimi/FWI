@@ -62,7 +62,7 @@ class UngagedComponent:
                 columns=REQUIRED_OUT_COLS
             )
 
-        model_dir = self.ctx.config.txrr_dir
+        model_dir = self.ctx.registry.txrr_dir
 
         rows = []
 
