@@ -49,7 +49,7 @@ def build_context(
 
     registry = Registry(
         watershed_shp=watershed_shp,
-        upstream_gages_json=upstream_json,
+        upstream_json=upstream_json,
         quads_csv = quads_csv,
     )
 
