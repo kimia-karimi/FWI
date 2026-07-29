@@ -12,7 +12,7 @@ def load_txrr_flow(
     ws_id,
     start,
     end,
-    model_dir,
+    model_dir="T:/CoastalScience/Data/Hydrology/fwi_master/Simulations\Simulations",
 ):
 
     path = Path(model_dir) / f"{ws_id}m"
