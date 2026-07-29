@@ -31,7 +31,7 @@ DEFAULT_UPSTREAM_JSON = (
 DEFAULT_QUADS_CSV = (
     DEFAULT_ROOT / "quads.csv"
 )
-print(Path(DEFAULT_WATERSHED_SHP).exists())
+print(Path(DEFAULT_UPSTREAM_JSON).exists())
 
 # ------------------------------------------------------------------
 # CONTEXT BUILDER
