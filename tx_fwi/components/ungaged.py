@@ -48,13 +48,13 @@ class UngagedComponent:
             .load_watersheds()
         )
 
-        if "HAS_UNGAGED" not in watersheds.columns:
+        if "HAS_UNGAGE" not in watersheds.columns:
             raise ValueError(
-                "Registry missing HAS_UNGAGED field."
+                "Registry missing HAS_UNGAGE field."
             )
 
         reg = watersheds[
-            watersheds["HAS_UNGAGED"] == 1
+            watersheds["HAS_UNGAGE"] == 1
         ].copy()
 
         if reg.empty:
