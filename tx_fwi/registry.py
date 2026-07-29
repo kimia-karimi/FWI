@@ -17,6 +17,7 @@ class Registry:
         upstream_json=None,
         subwatersheds_csv=None,
         quads_csv=None,
+        txrr_dir=None,
     ):
         self.watershed_shp = Path(watershed_shp)
         self.upstream_json = (
@@ -28,6 +29,7 @@ class Registry:
             Path(quads_csv)
             if quads_csv else None
         )
+        self.txrr_dir = Path(txrr_dir)
 
     def load_quads(self):
 
