@@ -31,7 +31,10 @@ DEFAULT_UPSTREAM_JSON = (
 DEFAULT_QUADS_CSV = (
     DEFAULT_ROOT / "quads.csv"
 )
-print(Path(DEFAULT_UPSTREAM_JSON).exists())
+DEFAULT_TXRR_DIR = (
+DEFAULT_ROOT / "Simulations"
+)
+print(Path(DEFAULT_TXRR_DIR).exists())
 
 # ------------------------------------------------------------------
 # CONTEXT BUILDER
@@ -41,6 +44,7 @@ def build_context(
     watershed_shp: Path = DEFAULT_WATERSHED_SHP,
     upstream_json: Path = DEFAULT_UPSTREAM_JSON,
     quads_csv: Path = DEFAULT_QUADS_CSV,
+    txrr_dir=DEFAULT_TXRR_DIR
 ) -> RunContext:
     """
     Initialize storage + registry and wrap in RunContext
