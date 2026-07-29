@@ -16,6 +16,7 @@ class Registry:
         watershed_shp,
         upstream_json=None,
         subwatersheds_csv=None,
+        quads_csv=None,
     ):
         self.watershed_shp = Path(watershed_shp)
         self.upstream_json = (
