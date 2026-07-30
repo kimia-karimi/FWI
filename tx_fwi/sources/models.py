@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-
+from csv import reader
 def load_txrr_flow(
     ws_id,
     start,
@@ -22,8 +22,9 @@ def load_txrr_flow(
 
     df = pd.read_csv(
         path,
-        delim_whitespace=True,
+        sep=r"\s+",engine="python",
     )
+    
 
     #
     # expected:
