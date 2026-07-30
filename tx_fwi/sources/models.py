@@ -12,10 +12,10 @@ def load_txrr_flow(
     ws_id,
     start,
     end,
-    model_dir="T:/CoastalScience/Data/Hydrology/fwi_master/Simulations/Simulations",
+    model_dir=,
 ):
 
-    path = Path(model_dir) / f"{ws_id}"
+    path = Path(model_dir) / ws_id
 
     if not path.exists():
         raise FileNotFoundError(path)
