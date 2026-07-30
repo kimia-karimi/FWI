@@ -12,7 +12,7 @@ def load_txrr_flow(
     ws_id,
     start,
     end,
-    model_dir=,
+    model_dir,
 ):
 
     path = Path(model_dir) / ws_id
