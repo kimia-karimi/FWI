@@ -34,7 +34,7 @@ DEFAULT_QUADS_CSV = (
 DEFAULT_TXRR_DIR = (
 DEFAULT_ROOT / "Simulations"
 )
-print(Path(DEFAULT_TXRR_DIR).exists())
+#print(Path(DEFAULT_TXRR_DIR).exists())
 
 # ------------------------------------------------------------------
 # CONTEXT BUILDER
