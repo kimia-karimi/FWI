@@ -303,6 +303,6 @@ def load_lake_texana_afday(start=None, end=None) -> pd.Series:
 
 from tx_fwi.sources.base import registry
 
-@registry.register(source="lnra", special="lake_texana")
+@registry.register(source="usgs", special="lake_texana")
 def lake_texana_handler(start, end, *, site_id=None, meta=None):
     return load_lake_texana_afday(start, end)
