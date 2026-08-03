@@ -43,9 +43,9 @@ def fetch_ibwc_daily_rounded_afday(station_id: str, start, end) -> pd.Series:
     params = build_ibwc_params(station_id, start, end)
 
     resp = requests.get(EXPORT_ENDPOINT, params=params, timeout=HTTP_TIMEOUT)
-    print("DEBUG STATUS:", resp.status_code)
-    print("DEBUG URL:", resp.url)
-    print("DEBUG RESPONSE:", resp.text[:500])
+    #print("DEBUG STATUS:", resp.status_code)
+    print("[IBWC]", resp.url)
+    #print("DEBUG RESPONSE:", resp.text[:500])
     resp.raise_for_status()
 
     if resp.status_code != 200:
