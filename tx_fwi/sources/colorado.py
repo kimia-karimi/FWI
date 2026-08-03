@@ -55,7 +55,7 @@ def colorado_adjusted_afday(start, end) -> pd.Series:
     2) After 2013-10-01, if Bay City < 2300 cfs → use Wharton
     """
 
-    print("[Colorado] Fetching Bay City + Wharton via USGS utils...")
+    print("[Colorado] Fetching Colorado River at Bay City (08162500) + Wharton (surrogate, 08162000)...")
 
     bay_city = _fetch_discharge_afday(BAY_CITY_GAGE, start, end)
     wharton = _fetch_discharge_afday(WHARTON_GAGE, start, end)
