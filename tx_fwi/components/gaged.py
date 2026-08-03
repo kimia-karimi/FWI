@@ -50,7 +50,7 @@ class LocalGagedComponent:
             )
 
         print(f"[Local] source={source_norm}, special={special_norm}, gage={gage_id}")
-        print(registry._handlers.keys())
+        #print(registry._handlers.keys())
 
 
         #  unified calling convention
