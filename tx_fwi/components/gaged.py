@@ -74,7 +74,7 @@ class LocalGagedComponent:
             estuary = r.get("ESTUARY")
             source = r.get("G_SOURCE")
             gage_id = r.get("GAGE_ID")
-            special = r.get("SPECIAL_T")
+            special = r.get("SPECIAL")
             meta=r 
 
             if pd.isna(source) or pd.isna(gage_id):
