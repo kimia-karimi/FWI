@@ -57,11 +57,11 @@ class UpstreamGagedComponent:
             return fetch_usgs_daily_afday(gage_id, start, end)
 
         # 🔧 LNRA / Lake Texana (future hook)
-        if source == "lnra":
-            raise NotImplementedError(
-                "LNRA/Lake Texana requires a file path. "
-                "Add 'path' to upstream_gages.json."
-            )
+        #if source == "lnra":
+            #raise NotImplementedError(
+                #"LNRA/Lake Texana requires a file path. "
+                #"Add 'path' to upstream_gages.json."
+            #)
 
         # 🔧 IBWC (optional future extension)
         if source == "ibwc":
