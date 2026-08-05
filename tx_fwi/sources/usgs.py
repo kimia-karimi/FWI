@@ -210,6 +210,8 @@ def fetch_usgs_daily_cfs(site_id: str, start, end) -> pd.Series:
     df = df.groupby(level=0)["value"].mean().to_frame()
     # Ensure daily continuity
     s = normalize_daily_series(df["value"], start=start, end=end)
+    print("start:", s.index.min())
+    print("end:", s.index.max())
     print("rows:", len(s))
     s.name = site_id
 
