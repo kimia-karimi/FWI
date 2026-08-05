@@ -42,8 +42,12 @@ def fetch_usgs_daily_cfs(site_id: str, start, end) -> pd.Series:
     resp.raise_for_status()
 
     data = resp.json()
+    print("keys:", data.keys())
+    print("numberMatched:", data.get("numberMatched"))
+    print("numberReturned:", data.get("numberReturned"))
 
     features = data.get("features", [])
+    print(len(features))
     if not features:
         return pd.Series(dtype="float64", name=site_id)
 
