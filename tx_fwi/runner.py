@@ -123,7 +123,7 @@ def run_all(start: str | None = None, end: str | None = None):
     comp_diversion = DiversionflowComponent(ctx)
     n_diversion = comp_diversion.run(start=start_dt, end=end_dt)
 
-    print(f"Diversion added: {n_diversion:,}")
+    print(f"Diversion rows added: {n_diversion:,}")
     # --------------------------------------------------------------
     # Component 5: Return 
     # --------------------------------------------------------------
@@ -132,7 +132,7 @@ def run_all(start: str | None = None, end: str | None = None):
     comp_return = ReturnFlowComponent(ctx)
     n_return = comp_return.run(start=start_dt, end=end_dt)
     
-    print(f"Return added: {n_return:,}")
+    print(f"Return rows added: {n_return:,}")
     print("\nPipeline complete.")
 
 
