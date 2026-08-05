@@ -25,6 +25,8 @@ BASE_URL = "https://api.waterdata.usgs.gov/ogcapi/v0/collections/daily"
 TIMEOUT = 60
 # USGS Water Data daily API allows a maximum page size of 50,000.
 LIMIT = 50000
+# USGS discharge, in cubic feet per second.
+PARAMETER_CODE_DISCHARGE = "00060"
 # Daily mean statistic.
 STATISTIC_ID_MEAN = "00003"
 
