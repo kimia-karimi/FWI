@@ -67,17 +67,14 @@ def fetch_usgs_daily_cfs(site_id: str, start, end) -> pd.Series:
 
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
-
-    #df = df.dropna(subset=["date"]).set_index("date").sort_index()
-
+    print("before dropna:",len(df))
+    df = df.dropna(subset=["date"]).set_index("date").sort_index()
+    print("after dropna:",len(df))
     # Ensure daily continuity
     s = normalize_daily_series(df["value"], start=start, end=end)
-    print(site_id)
     print("rows:", len(s))
     print("start:", s.index.min())
     print("end:", s.index.max())
-    print(s.head())
-    print(s.tail())
 
     s.name = site_id
 
