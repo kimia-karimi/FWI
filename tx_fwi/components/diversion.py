@@ -91,6 +91,31 @@ class DiversionflowComponent:
         watersheds = watersheds.to_crs(gdf_points.crs)
 
         joined = gpd.sjoin(gdf_points, watersheds, how="right", predicate="intersects")
+        
+        debug = (joined[["WR_ID", "YEAR", "WS_ID", "Estuary", *MONTHLY_COLS, ]])
+        debug.to_csv( "diversion_watershed_assignment.csv", index=False)
+        for estuary, grp in wsd_wr.groupby("Estuary"):
+            annual = (
+                grp[MONTHLY_COLS]
+                .sum(axis=1)
+                .sum()
+            )
+            print(
+                f"{estuary}: "
+                f"{len(grp)} watersheds "
+                f"annual diversion={annual:,.2f}"
+            )
+
+            ws_totals = (
+                grp.assign(
+                    annual_diversion=grp[MONTHLY_COLS].sum(axis=1)
+                )
+                [["WS_ID", "annual_diversion"]]
+                .sort_values(
+                    "annual_diversion",ascending=False)
+            )
+
+            print(ws_totals.head(10))
         #aggregate by watershed
         
 
