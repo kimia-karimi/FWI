@@ -263,7 +263,7 @@ class ReturnFlowComponent:
             value_col="value",
             id_col="ws_id",
             estuary_col="estuary",
-            value_is_monthly_total=False,
+            value_is_monthly_total=True,
         )
 
         if daily.empty:
