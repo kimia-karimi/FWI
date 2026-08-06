@@ -43,7 +43,7 @@ OUTFALL_URL = (
 
 class ReturnFlowComponent:
 
-    name = "return_flow"
+    name = "return"
 
     def __init__(self, ctx: RunContext):
         self.ctx = ctx
