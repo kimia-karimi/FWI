@@ -100,11 +100,10 @@ class DiversionflowComponent:
                 .sum(axis=1)
                 .sum()
             )
-            print(
-                f"{estuary}: "
-                f"{len(grp)} watersheds "
-                f"annual diversion={annual:,.2f}"
-            )
+            
+            print("unique watersheds:", grp["WS_ID"].nunique())
+            print("rows:", len(grp))
+
 
             ws_totals = (
                 grp.assign(
@@ -139,7 +138,7 @@ class DiversionflowComponent:
         # expand monthly->daily by days-in-month 
         daily = expand_monthly_to_daily(
             df_long,
-            year_col="YEAR", month_col="month", value_col="diversion", id_col="WS_ID", estuary_col="Estuary", value_is_monthly_total=False)
+            year_col="YEAR", month_col="month", value_col="diversion", id_col="WS_ID", estuary_col="Estuary", value_is_monthly_total=True)
         
         if daily.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
