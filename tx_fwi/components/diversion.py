@@ -94,7 +94,7 @@ class DiversionflowComponent:
         
         debug = (joined[["WR_ID", "YEAR", "WS_ID", "Estuary", *MONTHLY_COLS, ]])
         debug.to_csv( "diversion_watershed_assignment.csv", index=False)
-        for estuary, grp in wsd_wr.groupby("Estuary"):
+        for estuary, grp in joined.groupby("Estuary"):
             annual = (
                 grp[MONTHLY_COLS]
                 .sum(axis=1)
