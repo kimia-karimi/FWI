@@ -58,7 +58,7 @@ def expand_monthly_to_daily(
     Expand monthly diversion/return records to daily values.
 
     If value_is_monthly_total=True, each month is divided by the number
-    of days in that month; this matches the FWI convention you described
+    of days in that month; this matches the FWI convention described
     for monthly diversion and return data.
     """
     if df_monthly.empty:
