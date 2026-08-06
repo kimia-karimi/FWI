@@ -70,8 +70,8 @@ class DiversionflowComponent:
         wr_coord = df_rights.merge(df_points[["WR_ID", "LAT_DD", "LONG_DD"]], on="WR_ID", how="left")
         
         # normalize and join
-        #df_points["LAT_DD"] = pd.to_numeric(df_points["LAT_DD"], errors="coerce").round(4)
-        #df_points["LONG_DD"] = pd.to_numeric(df_points["LONG_DD"], errors="coerce").round(4)
+        wr_coord["LAT_DD"] = pd.to_numeric(wr_coord["LAT_DD"], errors="coerce").round(4)
+        wr_coord["LONG_DD"] = pd.to_numeric(wr_coord["LONG_DD"], errors="coerce").round(4)
 
         # aggregate same WR_ID/YEAR 
         wr_merged = (wr_coord
@@ -90,7 +90,7 @@ class DiversionflowComponent:
         )
         watersheds = watersheds.to_crs(gdf_points.crs)
 
-        joined = gpd.sjoin(gdf_points, watersheds, how="inner", predicate="intersects")
+        joined = gpd.sjoin(gdf_points, watersheds, how="right", predicate="intersects")
         #aggregate by watershed
         
 
@@ -133,7 +133,7 @@ class DiversionflowComponent:
         daily["component"] = self.name
         daily["source"] = "TCEQ"
 
-        daily["value_afday"] = mgd_to_afday(daily["value"])
+        daily["value_afday"] = (daily["value"])
 
         daily["flow_role"] = "removal"
 
