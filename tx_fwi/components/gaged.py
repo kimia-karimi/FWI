@@ -110,6 +110,7 @@ class LocalGagedComponent:
             df["note"] = special
 
             rows.append(df)
+            print(df.head())
 
         if not rows:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
