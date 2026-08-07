@@ -78,6 +78,12 @@ class LocalGagedComponent:
             gage_id = r.get("GAGE_ID")
             special = r.get("SPECIAL")
             meta=r 
+            print(
+                f"source={source}, "
+                f"special={special}, "
+                f"type={type(special)}, "
+                f"bool={bool(special)}"
+            )
 
             if pd.isna(source) or pd.isna(gage_id):
                 continue
@@ -105,6 +111,7 @@ class LocalGagedComponent:
             df["estuary"] = estuary
             df["component"] = self.name
             df["source"] = str(source).lower()
+            
             df["flow_role"] = "adjusted" if special is not None else "direct"
             df["count_in_basin_sum"] = 1
             df["note"] = special
