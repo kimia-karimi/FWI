@@ -97,7 +97,7 @@ class DiversionflowComponent:
         watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "Estuary", "geometry"]])
 
         gdf_points = gpd.GeoDataFrame(
-            wr_merged,
+            wr_coord,
             geometry=gpd.points_from_xy(wr_merged["LONG_DD"], wr_merged["LAT_DD"],
             crs="EPSG:4269")
         )
