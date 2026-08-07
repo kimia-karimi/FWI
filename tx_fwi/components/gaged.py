@@ -111,8 +111,7 @@ class LocalGagedComponent:
             df["estuary"] = estuary
             df["component"] = self.name
             df["source"] = str(source).lower()
-            
-            df["flow_role"] = "adjusted" if special is not None else "direct"
+            df["flow_role"] = "adjusted" if if pd.notna(special) else "direct"
             df["count_in_basin_sum"] = 1
             df["note"] = special
 
