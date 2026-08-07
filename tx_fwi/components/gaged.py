@@ -113,7 +113,7 @@ class LocalGagedComponent:
             df["source"] = str(source).lower()
             df["flow_role"] = "adjusted" if pd.notna(special) else "direct"
             df["count_in_basin_sum"] = 1
-            df["note"] = special
+            df["note"] = special if pd.notna(special) else None
 
             rows.append(df)
             print(df.head())
