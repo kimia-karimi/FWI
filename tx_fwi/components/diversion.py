@@ -105,19 +105,7 @@ class DiversionflowComponent:
 
         joined = gpd.sjoin(gdf_points, watersheds, how="right", predicate="intersects")
 
-        grain_check = (
-            joined
-            .groupby(["WS_ID", "Estuary", "YEAR"])
-            .size()
-            .reset_index(name="n")
-            .query("n > 1")
-        )
-
-        print("\n[Diversion debug] duplicate rows after WS_ID/Estuary/YEAR aggregation")
-        print("duplicate grain rows:", len(grain_check))
-        print(grain_check.head(20))
-        debug = (joined[["WR_ID", "YEAR", "WS_ID", "Estuary", *MONTHLY_COLS, ]])
-        debug.to_csv( "diversion_watershed_assignment.csv", index=False)
+    
         for estuary, grp in joined.groupby("Estuary"):
             annual = (
                 grp[MONTHLY_COLS]
@@ -147,6 +135,20 @@ class DiversionflowComponent:
             .groupby(["WS_ID", "Estuary", "YEAR"], as_index=False)
             .sum(numeric_only=True)
         )
+        #debug
+        grain_check = (
+            joined
+            .groupby(["WS_ID", "Estuary", "YEAR"])
+            .size()
+            .reset_index(name="n")
+            .query("n > 1")
+        )
+
+        print("\n[Diversion debug] duplicate rows after WS_ID/Estuary/YEAR aggregation")
+        print("duplicate grain rows:", len(grain_check))
+        print(grain_check.head(20))
+        debug = (joined[["WR_ID", "YEAR", "WS_ID", "Estuary", *MONTHLY_COLS, ]])
+        debug.to_csv( "diversion_watershed_assignment.csv", index=False)
 
         # reshape to long
         df_long = wsd_wr.melt(
