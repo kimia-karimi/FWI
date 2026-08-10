@@ -62,6 +62,13 @@ class DiversionflowComponent:
         # ---- fetch rights ----
         rights = self._fetch_all_features(RIGHTS_URL)
         df_rights = pd.DataFrame([f["attributes"] for f in rights if "attributes" in f])
+        df_rights["YEAR"] = pd.to_numeric(df_rights["YEAR"],errors="coerce")
+        #filter between dates
+        start_year = pd.Timestamp(start).year
+        end_year = pd.Timestamp(end).year
+
+        df_rights = df_rights[df_rights["YEAR"].between(start_year, end_year)].copy()
+
         # aggregate same WR_ID/YEAR 
         for c in MONTHLY_COLS:
             df_rights[c] = pd.to_numeric(df_rights[c], errors="coerce").fillna(0.0)
