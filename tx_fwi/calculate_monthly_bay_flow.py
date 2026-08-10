@@ -32,6 +32,7 @@ COMPONENT_MAP = {
     "gauge": "gaged",
     "usgs": "gaged",
     "ibwc": "gaged",
+    "gaged_upstream": "gaged_upstream",
     "model": "model",
     "txrr": "model",
     "ungaged": "model",
@@ -44,7 +45,7 @@ COMPONENT_MAP = {
     "fwi": "fresh_in",
 }
 
-OUTPUT_COMPONENTS = ["gaged", "model", "diversion", "return"]
+OUTPUT_COMPONENTS = ["gaged", "gaged_upstream", "model", "diversion", "return"]
 OUTPUT_COLUMNS = ["Year", "Month", "Estuary", "gaged", "model", "diversion", "return", "fresh_in"]
 
 
@@ -87,16 +88,12 @@ def build_monthly_estuary_flow(daily_df: pd.DataFrame) -> pd.DataFrame:
     """
     Aggregate daily FWI component records to monthly estuary totals.
 
-    Parameters
-    ----------
-    daily_df : pandas.DataFrame
-        Curated daily FWI table.
+    Monthly formula:
+        fresh_in = gaged + model - diversion + return
 
-    Returns
-    -------
-    pandas.DataFrame
-        Monthly estuary summary with columns:
-        Year, Month, Estuary, gaged, model, diversion, return, fresh_in
+    Important:
+        gaged must represent local + upstream gaged contribution.
+        If flow_role exists, adjusted gaged rows are preferred.
     """
     df = _standardize_columns(daily_df)
 
@@ -156,6 +153,7 @@ def build_monthly_estuary_flow(daily_df: pd.DataFrame) -> pd.DataFrame:
 
     wide["fresh_in"] = (
         wide["gaged"]
+        + wide["gaged_upstream"]
         + wide["model"]
         - wide["diversion"]
         + wide["return"]
