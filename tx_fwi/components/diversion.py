@@ -171,7 +171,6 @@ class DiversionflowComponent:
             )
         )
 
-        monthly_csv = 
         monthly_long.to_csv(
             "diversion_monthly_by_watershed_long.csv",
            index=False
