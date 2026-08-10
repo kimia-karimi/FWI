@@ -157,9 +157,26 @@ class DiversionflowComponent:
             var_name="month_name",
             value_name="diversion"
         )
-
-       
         df_long["month"] = df_long["month_name"].map(MONTH_MAP)
+
+      
+
+
+        monthly_long = (
+            df_long[
+            ["YEAR", "month", "Estuary", "WS_ID", "diversion"]
+            ]
+            .sort_values(
+                ["Estuary", "WS_ID", "YEAR", "month"]
+            )
+        )
+
+        monthly_csv = debug_dir / "diversion_monthly_by_watershed_long.csv"
+
+        monthly_long.to_csv(
+           monthly_csv,
+           index=False
+       )
 
         # expand monthly->daily by days-in-month 
         daily = expand_monthly_to_daily(
