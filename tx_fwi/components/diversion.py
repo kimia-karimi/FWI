@@ -137,7 +137,7 @@ class DiversionflowComponent:
         )
         #debug
         grain_check = (
-            joined
+            wsd_wr
             .groupby(["WS_ID", "Estuary", "YEAR"])
             .size()
             .reset_index(name="n")
