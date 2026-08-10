@@ -52,7 +52,9 @@ class DiversionflowComponent:
     def build(self, start, end):
         # NOTE: This keeps your current approach:
         # - fetch water rights (layer 13) + points (layer 3)
-        # - merge on WR_ID
+        # - aggregate water use by WR_ID/YEAR
+        # - fetch diversion points (layer 3)
+        # - reduce points to ONE coordinate per WR_ID
         # - spatial join with watershed registry to assign WS_ID
         # - aggregate monthly fields JAN_DIV..DEC_DIV and expand to daily 
 
@@ -63,12 +65,12 @@ class DiversionflowComponent:
         # aggregate same WR_ID/YEAR 
         for c in MONTHLY_COLS:
             df_rights[c] = pd.to_numeric(df_rights[c], errors="coerce").fillna(0.0)
-            wr_merged = (
-                df_rights
-                .dropna(subset=["WR_ID", "YEAR"])
-                .groupby(["WR_ID", "YEAR"], as_index=False)[MONTHLY_COLS]
-                .sum(numeric_only=True)
-            )
+        wr_merged = (
+            df_rights
+            .dropna(subset=["WR_ID", "YEAR"])
+            .groupby(["WR_ID", "YEAR"], as_index=False)[MONTHLY_COLS]
+            .sum(numeric_only=True)
+        )
 
         # ---- fetch points ----
         pts = self._fetch_all_features(POINTS_URL)
@@ -78,13 +80,38 @@ class DiversionflowComponent:
         # ---- attach coordinates ----
         #left merging to keep all the IDS. point records can include diversion points and on-channel reservoir locations
         df_points["TYPE"] = df_points["TYPE"].astype(str).str.strip()
-
+        # Keep diversion points only for diversion component.
         points_div = df_points[df_points["TYPE"].str.lower().eq("diversion point")].copy()
-        wr_coord = wr_merged.merge(df_points[["WR_ID", "LAT_DD", "LONG_DD"]], on="WR_ID", how="left")
         
         # normalize and join
-        wr_coord["LAT_DD"] = pd.to_numeric(wr_coord["LAT_DD"], errors="coerce").round(4)
-        wr_coord["LONG_DD"] = pd.to_numeric(wr_coord["LONG_DD"], errors="coerce").round(4)
+        points_div["LAT_DD"] = pd.to_numeric(points_div["LAT_DD"], errors="coerce").round(4)
+        points_div["LONG_DD"] = pd.to_numeric(points_div["LONG_DD"], errors="coerce").round(4)
+        points_div = points_div.dropna(subset=["WR_ID", "LAT_DD", "LONG_DD"]).copy()
+        # Remove exact duplicate coordinates for the same WR_ID.
+        points_div = points_div.drop_duplicates(subset=["WR_ID", "LAT_DD", "LONG_DD"] ).copy()
+        # Debug: how many diversion-point coordinates per WR_ID?
+        point_counts = (points_div .groupby("WR_ID") .size() .reset_index(name="n_points") .sort_values("n_points", ascending=False))
+
+        print("\n[Diversion debug] diversion-point coordinates per WR_ID")
+        print(point_counts["n_points"].describe())
+        print(point_counts.head(20))
+        # Choose ONE representative diversion point per WR_ID
+        if "OBJECTID" in points_div.columns:
+            points_div = points_div.sort_values(["WR_ID", "OBJECTID"])
+        else:
+            points_div = points_div.sort_values(["WR_ID", "LAT_DD", "LONG_DD"])
+
+        points_one = (
+            points_div
+            .drop_duplicates(subset=["WR_ID"], keep="first")
+            [["WR_ID", "LAT_DD", "LONG_DD"]]
+            .copy()
+        )
+
+        print("\n[Diversion debug] one point per WR_ID")
+        print("rows:", len(points_one))
+        print("unique WR_ID:", points_one["WR_ID"].nunique())
+
 
         # aggregate same WR_ID/YEAR 
         #wr_merged = (wr_coord
@@ -92,7 +119,8 @@ class DiversionflowComponent:
            # .groupby(["WR_ID", "YEAR", "LAT_DD", "LONG_DD"], as_index=False)
             #.sum(numeric_only=True)
         #)
-
+        # Merge aggregated rights to one coordinate per WR_ID
+        wr_coord = wr_merged.merge(points_one[["WR_ID", "LAT_DD", "LONG_DD"]], on="WR_ID", how="left")
         # spatial join to watershed registry
         watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "Estuary", "geometry"]])
 
@@ -103,7 +131,10 @@ class DiversionflowComponent:
         )
         watersheds = watersheds.to_crs(gdf_points.crs)
 
-        joined = gpd.sjoin(gdf_points, watersheds, how="right", predicate="intersects")
+        joined = gpd.sjoin(gdf_points, watersheds, how="left", predicate="intersects")
+        joined = joined.dropna(subset=["WS_ID"]).copy()
+        for c in MONTHLY_COLS:
+            joined[c] = pd.to_numeric(joined[c], errors="coerce").fillna(0.0)
 
     
         for estuary, grp in joined.groupby("Estuary"):
