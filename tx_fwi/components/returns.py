@@ -25,7 +25,6 @@ REQUIRED_OUT_COLS = [
 
 
 STATE = "TX"
-START_FY = 2015
 
 BASE_URL = (
     "https://echo.epa.gov/files/echodownloads/"
@@ -39,7 +38,9 @@ OUTFALL_URL = (
     "&where=1%3D1"
     "&f=geojson"
 )
-
+def fiscal_year(dt):
+    dt = pd.Timestamp(dt)
+    return dt.year + 1 if dt.month >= 10 else dt.year
 
 class ReturnFlowComponent:
 
@@ -68,20 +69,11 @@ class ReturnFlowComponent:
     # --------------------------------------------------
     # Load all DMRs
     # --------------------------------------------------
-    def _load_dmr(self):
-
-        current_year = pd.Timestamp.now().year
-        current_month = pd.Timestamp.now().month
-
-        current_fy = (
-            current_year + 1
-            if current_month >= 10
-            else current_year
-        )
+    def _load_dmr(self,start_fy, end_fy):
 
         frames = []
 
-        for fy in range(START_FY, current_fy + 1):
+        for fy in range(start_fy, end_fy + 1):
 
             z = self._download_fy_zip(fy)
 
@@ -116,17 +108,28 @@ class ReturnFlowComponent:
     # Main build
     # --------------------------------------------------
     def build(self, start, end):
+        start_ts = pd.Timestamp(start)
+        end_ts = pd.Timestamp(end)
+        start_fy = fiscal_year(start_ts)
+        end_fy = fiscal_year(end_ts)
 
-        dmr = self._load_dmr()
+        dmr = self._load_dmr(start_fy, end_fy)
 
         if dmr.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
+
+        dmr = dmr[
+    (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
+    & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
+].copy()
 
         # --------------------------------------------------
         # Flow records only
         # --------------------------------------------------
         dmr = dmr[
-            dmr["PARAMETER_DESC"]
+            (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
+            & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
+            & dmr["PARAMETER_DESC"]
             == "Flow, in conduit or thru treatment plant"
         ].copy()
 
