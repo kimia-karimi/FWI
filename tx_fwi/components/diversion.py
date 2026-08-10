@@ -174,7 +174,51 @@ class DiversionflowComponent:
         monthly_long.to_csv(
             "diversion_monthly_by_watershed_long.csv",
            index=False
-       )
+        )
+        debug_ws = "08010"
+        debug_year = 2024
+
+        tmp = wsd_wr.copy()
+
+        tmp["WS_ID"] = tmp["WS_ID"].astype(str).str.strip().str.zfill(5)
+        tmp["YEAR"] = pd.to_numeric(tmp["YEAR"], errors="coerce").astype("Int64")
+
+        check = tmp[(tmp["WS_ID"] == debug_ws) & (tmp["YEAR"] == debug_year)].copy()
+        print(f"\n[Diversion debug] Monthly diversion for WS_ID={debug_ws}, YEAR={debug_year}")
+
+        month_lookup = {
+            "JAN_DIV": "Jan",
+            "FEB_DIV": "Feb",
+            "MAR_DIV": "Mar",
+            "APR_DIV": "Apr",
+            "MAY_DIV": "May",
+            "JUN_DIV": "Jun",
+            "JUL_DIV": "Jul",
+            "AUG_DIV": "Aug",
+            "SEPT_DIV": "Sep",
+            "OCT_DIV": "Oct",
+            "NOV_DIV": "Nov",
+            "DEC_DIV": "Dec",
+        }
+
+        check_long = (check.melt(
+            id_vars=["WS_ID", "Estuary", "YEAR"],
+            value_vars=MONTHLY_COLS,
+            var_name="month_col",
+            value_name="diversion_acft"
+        )
+                     )
+
+        check_long["Month"] = check_long["month_col"].map(month_lookup)
+
+        check_long = check_long[
+        ["WS_ID", "Estuary", "YEAR", "Month", "diversion_acft"]]
+
+        print(check_long.to_string(index=False))
+
+        print("\nAnnual total:", check_long["diversion_acft"].sum()) 
+
+        
 
         # expand monthly->daily by days-in-month 
         daily = expand_monthly_to_daily(
