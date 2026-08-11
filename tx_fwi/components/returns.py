@@ -48,7 +48,7 @@ class ReturnFlowComponent:
 
     def __init__(self, ctx: RunContext):
         self.ctx = ctx
-        @staticmethod
+    @staticmethod
     def _normalize_npdes(series):
         return (
             series
