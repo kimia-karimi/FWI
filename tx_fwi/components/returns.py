@@ -141,7 +141,7 @@ class ReturnFlowComponent:
 
         url = f"{BASE_URL}/{fname}"
 
-        r = requests.get(url, timeout=300)
+        r = requests.get(url, timeout=300, verify=False)
 
         if r.status_code != 200:
             print(f"[ReturnFlow] Failed FY {fy}")
