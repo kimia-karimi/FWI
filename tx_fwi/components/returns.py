@@ -78,11 +78,8 @@ class ReturnFlowComponent:
         return None
 
     def _write_debug_csv(self, debug_df):
-        debug_dir = Path("debug")
-        debug_dir.mkdir(parents=True, exist_ok=True)
-
-        out_path = debug_dir / "return_dmr_feature_flow_debug.csv"
-        debug_df.to_csv(out_path, index=False)
+        
+        debug_df.to_csv( "return_dmr_feature_flow_debug.csv", index=False)
 
         print(f"[ReturnFlow] Wrote debug CSV: {out_path}")
 
@@ -302,7 +299,7 @@ class ReturnFlowComponent:
         )
 
         feature_monthly["FLOW_ACFT_MONTH"] = mgd_to_afday(
-            feature_monthly["overall_flow_mgd"]*
+            feature_monthly["FLOW_MGD"]*
             feature_monthly["days_in_month"],
         )
         
@@ -325,7 +322,7 @@ class ReturnFlowComponent:
         resp.raise_for_status()
 
         geojson = resp.json()
-
+        print(outfalls.columns.tolist())
 
         outfalls = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
 
@@ -366,8 +363,8 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         # Join DMR permit + feature -> TCEQ permit + outfall
         # --------------------------------------------------
-        dmr_geo = dmr.merge(
-            outfalls[["NPDES_NUM", "geometry"]],
+        dmr_geo = feature_monthly.merge(
+            outfalls_feature,
             on=["NPDES_NUM","PERM_FEATURE_NMBR"],
             how="left",
             indicator= True
@@ -511,7 +508,7 @@ class ReturnFlowComponent:
         daily = expand_monthly_to_daily(
             monthly_ws.rename(
                 columns={
-                    "FLOW_MGD": "value",
+                    "value_acft_month": "value",
                     "WS_ID": "ws_id",
                     "Estuary": "estuary",
                 }
@@ -532,9 +529,7 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         # Convert MGD -> AFD
         # --------------------------------------------------
-        daily["value_afday"] = mgd_to_afday(
-            daily["value"]
-        )
+        daily["value_afday"] = daily["value"]
 
         # --------------------------------------------------
         # Canonical schema
