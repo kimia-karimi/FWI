@@ -81,7 +81,7 @@ class ReturnFlowComponent:
         
         debug_df.to_csv( "return_dmr_feature_flow_debug.csv", index=False)
 
-        print(f"[ReturnFlow] Wrote debug CSV: {out_path}")
+        print(f"[ReturnFlow] Wrote debug CSV")
 
     def _build_feature_debug(self, feature_monthly):
         """
@@ -140,8 +140,10 @@ class ReturnFlowComponent:
         fname = f"{STATE}_FY{fy}_NPDES_DMRS_LIMITS.zip"
 
         url = f"{BASE_URL}/{fname}"
+        print(url)
 
         r = requests.get(url, timeout=300, verify=False)
+        print(fy, r.status_code,r.headers.get("Content-Type"),len(r.content))
 
         if r.status_code != 200:
             print(f"[ReturnFlow] Failed FY {fy}")
@@ -322,10 +324,10 @@ class ReturnFlowComponent:
         resp.raise_for_status()
 
         geojson = resp.json()
-        print(outfalls.columns.tolist())
+        
 
         outfalls = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
-
+        print(outfalls.columns.tolist())
         outfalls["NPDES_NUM"] = self._normalize_npdes(
             outfalls["NPDES_NUM"]
         )
