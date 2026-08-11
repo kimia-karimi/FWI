@@ -48,7 +48,93 @@ class ReturnFlowComponent:
 
     def __init__(self, ctx: RunContext):
         self.ctx = ctx
+        @staticmethod
+    def _normalize_npdes(series):
+        return (
+            series
+            .astype(str)
+            .str.replace(r"\D+", "", regex=True)
+            .str.lstrip("0")
+            .replace("", pd.NA)
+        )
 
+    @staticmethod
+    def _normalize_outfall(series):
+        return (
+            series
+            .astype(str)
+            .str.strip()
+            .str.replace(r"\.0$", "", regex=True)
+            .str.replace(r"\D+", "", regex=True)
+            .str.lstrip("0")
+            .replace("", pd.NA)
+        )
+
+    @staticmethod
+    def _first_existing_col(df, candidates):
+        for c in candidates:
+            if c in df.columns:
+                return c
+        return None
+
+    def _write_debug_csv(self, debug_df):
+        debug_dir = Path("debug")
+        debug_dir.mkdir(parents=True, exist_ok=True)
+
+        out_path = debug_dir / "return_dmr_feature_flow_debug.csv"
+        debug_df.to_csv(out_path, index=False)
+
+        print(f"[ReturnFlow] Wrote debug CSV: {out_path}")
+
+    def _build_feature_debug(self, feature_monthly):
+        """
+        One row per permit/month with one MGD column per feature/outfall,
+        plus total MGD and total acre-ft/month.
+        """
+
+        debug = (
+            feature_monthly
+            .pivot_table(
+                index=[
+                    "EXTERNAL_PERMIT_NMBR",
+                    "MONITORING_PERIOD_END_DATE",
+                ],
+                columns="PERM_FEATURE_NMBR",
+                values="FLOW_MGD",
+                aggfunc="sum",
+                fill_value=0,
+            )
+            .reset_index()
+        )
+
+        debug.columns = [
+            c
+            if c in [
+                "EXTERNAL_PERMIT_NMBR",
+                "MONITORING_PERIOD_END_DATE",
+            ]
+            else f"feature_{c}_mgd"
+            for c in debug.columns
+        ]
+
+        feature_cols = [
+            c
+            for c in debug.columns
+            if c.startswith("feature_")
+            and c.endswith("_mgd")
+        ]
+
+        debug["overall_flow_mgd"] = debug[feature_cols].sum(axis=1)
+
+        debug["days_in_month"] = (
+            pd.to_datetime(debug["MONITORING_PERIOD_END_DATE"])
+            .dt.days_in_month
+        )
+        #convert mgd to afd and multiply by the number of days in a month 
+        debug["overall_flow_acft_month"] = mgd_to_afday(debug["overall_flow_mgd"]) * debug["days_in_month"]
+            
+
+        return debug
     # --------------------------------------------------
     # Download DMR ZIP
     # --------------------------------------------------
@@ -118,11 +204,6 @@ class ReturnFlowComponent:
         if dmr.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
 
-        dmr = dmr[
-    (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
-    & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
-].copy()
-
         # --------------------------------------------------
         # Flow records only
         # --------------------------------------------------
@@ -146,21 +227,93 @@ class ReturnFlowComponent:
         dmr = dmr.dropna(
             subset=[
                 "MONITORING_PERIOD_END_DATE",
+                "EXTERNAL_PERMIT_NMBR",
+                "PERM_FEATURE_NMBR",
                 "FLOW_MGD",
             ]
         )
-
+        if dmr.empty:
+            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
         # --------------------------------------------------
-        # Permit normalization
+        # Permit, outfall, and ID normalization
         # --------------------------------------------------
-        dmr["NPDES_NUM"] = (
+        
+        dmr["NPDES_NUM"] = self._normalize_npdes(
             dmr["EXTERNAL_PERMIT_NMBR"]
-            .astype(str)
-            .str.replace(r"\D+", "", regex=True)
-            .str.lstrip("0")
+        )
+
+        dmr["PERM_FEATURE_NMBR"] = self._normalize_outfall(
+            dmr["PERM_FEATURE_NMBR"]
+        )
+        dmr = dmr.dropna(
+            subset=[
+                "NPDES_NUM","PERM_FEATURE_NMBR",
+            ]
+        )
+        # --------------------------------------------------
+        # Avoid inflating flow because one reported DMR value
+        # can appear more than once due to limit rows.
+        # --------------------------------------------------
+        dedup_cols = [
+            "EXTERNAL_PERMIT_NMBR",
+            "NPDES_NUM",
+            "PERM_FEATURE_NMBR", #multiple feature/outfall may be reported separately
+            "MONITORING_PERIOD_END_DATE",
+            "PARAMETER_CODE",
+            "DMR_VALUE_ID",
+            "FLOW_MGD",
+        ]
+
+        dedup_cols = [
+            c for c in dedup_cols
+            if c in dmr.columns
+        ]
+
+        dmr = dmr.drop_duplicates(
+            subset=dedup_cols
+        )
+        # --------------------------------------------------
+        # Monthly feature-level flow
+        #
+        #
+        # keep each permit outfall separate before spatial join.
+        # --------------------------------------------------
+        feature_monthly = (
+            dmr
+            .groupby(
+                [
+                    "EXTERNAL_PERMIT_NMBR",
+                    "NPDES_NUM",
+                    "PERM_FEATURE_NMBR",
+                    "MONITORING_PERIOD_END_DATE",
+                ],
+                as_index=False,
+            )
+            .agg(
+                FLOW_MGD=("FLOW_MGD", "sum"),
+                n_dmr_rows=("FLOW_MGD", "size"),
+            )
+        )
+
+        feature_monthly["days_in_month"] = (
+            feature_monthly["MONITORING_PERIOD_END_DATE"]
+            .dt.days_in_month
+        )
+
+        feature_monthly["FLOW_ACFT_MONTH"] = mgd_to_afday(
+            feature_monthly["overall_flow_mgd"]*
+            feature_monthly["days_in_month"],
         )
         
-
+        
+        # --------------------------------------------------
+        # Debug CSV:
+        # permit, monitoring date, feature flow columns,
+        # overall MGD, and overall acre-ft/month.
+        # --------------------------------------------------
+        debug = self._build_feature_debug(feature_monthly)
+        self._write_debug_csv(debug)
+        
         # --------------------------------------------------
         # Load outfalls
         # --------------------------------------------------
@@ -175,21 +328,100 @@ class ReturnFlowComponent:
 
         outfalls = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
 
-        outfalls["NPDES_NUM"] = (
+        outfalls["NPDES_NUM"] = self._normalize_npdes(
             outfalls["NPDES_NUM"]
-            .astype(str)
-            .str.replace(r"\D+", "", regex=True)
-            .str.lstrip("0")
         )
+        outfalls = outfalls.dropna(
+            subset=[
+                "NPDES_NUM",
+                "PERM_FEATURE_NMBR",
+                "geometry",
+            ]
+        )
+        # --------------------------------------------------
+        # One geometry per permit + outfall.
+        #
+        # This prevents the old issue:
+        # joining permit total to all outfalls and multiplying flow.
+        # --------------------------------------------------
+        outfalls_feature = (
+            outfalls
+            .drop_duplicates(
+                subset=[
+                    "NPDES_NUM",
+                    "PERM_FEATURE_NMBR",
+                ]
+            )
+            [
+                [
+                    "NPDES_NUM",
+                    "PERM_FEATURE_NMBR",
+                    "geometry",
+                ]
+            ]
+        )
+ 
 
         # --------------------------------------------------
-        # Join flow -> outfall
+        # Join DMR permit + feature -> TCEQ permit + outfall
         # --------------------------------------------------
         dmr_geo = dmr.merge(
             outfalls[["NPDES_NUM", "geometry"]],
-            on="NPDES_NUM",
+            on=["NPDES_NUM","PERM_FEATURE_NMBR"],
             how="left",
+            indicator= True
         )
+        
+        # Optional join-quality debug
+
+        dmr_geo[
+            [
+                "EXTERNAL_PERMIT_NMBR",
+                "NPDES_NUM",
+                "PERM_FEATURE_NMBR",
+                "MONITORING_PERIOD_END_DATE",
+                "FLOW_MGD",
+                "FLOW_ACFT_MONTH",
+                "_merge",
+            ]
+        ].to_csv(
+           "return_dmr_outfall_join_debug.csv",
+            index=False,
+        )
+
+        missing_geo = dmr_geo[dmr_geo["_merge"] == "left_only"].copy()
+
+        if not missing_geo.empty:
+            missing_geo[
+                [
+                    "EXTERNAL_PERMIT_NMBR",
+                    "NPDES_NUM",
+                    "PERM_FEATURE_NMBR",
+                    "MONITORING_PERIOD_END_DATE",
+                    "FLOW_MGD",
+                    "FLOW_ACFT_MONTH",
+                ]
+            ].to_csv(
+                "return_dmr_missing_outfall_geometry.csv",
+                index=False,
+            )
+
+            print(
+                "[ReturnFlow] Missing outfall geometry rows: "
+                f"{len(missing_geo)}. "
+                "See return_dmr_missing_outfall_geometry.csv"
+            )
+
+        dmr_geo = dmr_geo[
+            dmr_geo["_merge"] == "both"
+        ].drop(columns=["_merge"])
+
+        dmr_geo = dmr_geo.dropna(
+            subset=["geometry"]
+        )
+
+        if dmr_geo.empty:
+            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
 
         dmr_geo = gpd.GeoDataFrame(
             dmr_geo,
@@ -235,6 +467,8 @@ class ReturnFlowComponent:
 
         # --------------------------------------------------
         # Aggregate by watershed/month
+        # Use FLOW_ACFT_MONTH, not FLOW_MGD.
+        # This is already total monthly volume.
         # --------------------------------------------------
         monthly_ws = (
             dmr_geo
@@ -246,12 +480,32 @@ class ReturnFlowComponent:
                     "month",
                 ],
                 as_index=False,
-            )["FLOW_MGD"]
-            .sum()
+            )
+            .agg(
+                value_acft_month=("FLOW_ACFT_MONTH", "sum"),
+                permits_included=(
+                    "EXTERNAL_PERMIT_NMBR",
+                    lambda x: ";".join(
+                        sorted(x.astype(str).unique())
+                    ),
+                ),
+                outfalls_included=(
+                    "PERM_FEATURE_NMBR",
+                    lambda x: ";".join(
+                        sorted(x.astype(str).unique())
+                    ),
+                ),
+                n_permit_outfalls=(
+                    "PERM_FEATURE_NMBR",
+                    "size",
+                ),
+            )
         )
 
         # --------------------------------------------------
         # Expand monthly -> daily
+        # No extra MGD conversion here.
+        # The conversion already happened once above.
         # --------------------------------------------------
         daily = expand_monthly_to_daily(
             monthly_ws.rename(
