@@ -207,6 +207,11 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         # Flow records only
         # --------------------------------------------------
+        
+        dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
+            dmr["MONITORING_PERIOD_END_DATE"],
+            errors="coerce",
+        )
         dmr = dmr[
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
@@ -214,10 +219,6 @@ class ReturnFlowComponent:
             == "Flow, in conduit or thru treatment plant"
         ].copy()
 
-        dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
-            dmr["MONITORING_PERIOD_END_DATE"],
-            errors="coerce",
-        )
 
         dmr["FLOW_MGD"] = pd.to_numeric(
             dmr["DMR_VALUE_STANDARD_UNITS"],
