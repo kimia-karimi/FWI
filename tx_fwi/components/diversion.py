@@ -32,7 +32,7 @@ class DiversionflowComponent:
     def __init__(self, ctx):
         self.ctx = ctx
     def _fetch_all_features(self, url: str, where: str = "1=1", out_fields: str = "*", batch_size: int = 2000):
-        count = requests.get(url, params={"where": where, "returnCountOnly": "true", "f": "json"}, timeout=60).json()["count"]
+        count = requests.get(url, verify=False, params={"where": where, "returnCountOnly": "true", "f": "json"}, timeout=60).json()["count"]
         feats = []
         offset = 0
         while True:
