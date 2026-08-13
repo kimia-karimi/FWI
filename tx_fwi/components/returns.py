@@ -333,7 +333,7 @@ class ReturnFlowComponent:
         PERM_FEATURE_NMBRs["PERMIT_NUM"] = self._normalize_npdes(
             PERM_FEATURE_NMBRs["PERMIT_NUM"]
         )
-        
+        PERM_FEATURE_NMBRs["PERM_FEATURE_NMBR"] = self._normalize_outfall(PERM_FEATURE_NMBRs["OUTFALL"])
         print("PERM_FEATURE_NMBRs rows before dropna:", len(PERM_FEATURE_NMBRs))
         PERM_FEATURE_NMBRs = PERM_FEATURE_NMBRs.dropna(
             subset=[
