@@ -60,7 +60,7 @@ class ReturnFlowComponent:
         )
 
     @staticmethod
-    def _normalize_PERM_FEATURE_NMBR(series):
+    def _normalize_outfall(series):
         return (
             series
             .astype(str)
