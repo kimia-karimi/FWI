@@ -145,17 +145,7 @@ class ReturnFlowComponent:
 
         r = requests.get(url, timeout=300, verify=certifi.where(),)
         print(fy, r.status_code,r.headers.get("Content-Type"),len(r.content))
-       
-
-        try:
-            payload = r.json()
-        except Exception:
-            print("Non-JSON response:")
-            print(r.status_code)
-            print(r.text[:1000])
-            return []
         if r.status_code != 200:
-            print(f"[ReturnFlow] Failed FY {fy}")
             return None
 
         return io.BytesIO(r.content)
