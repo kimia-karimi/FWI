@@ -331,6 +331,7 @@ class ReturnFlowComponent:
         outfalls["NPDES_NUM"] = self._normalize_npdes(
             outfalls["NPDES_NUM"]
         )
+        outfalls["PERM_FEATURE_NMBR"] = self._normalize_outfall(PERM_FEATURE_NMBRs["OUTFALL"])
         outfalls = outfalls.dropna(
             subset=[
                 "NPDES_NUM",
