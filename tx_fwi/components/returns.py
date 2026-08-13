@@ -9,6 +9,7 @@ from tx_fwi.sources.base import registry
 from tx_fwi.transforms.units import mgd_to_afday
 import io
 import zipfile
+import certifi
 
 REQUIRED_OUT_COLS = [
     "date",
@@ -142,7 +143,7 @@ class ReturnFlowComponent:
         url = f"{BASE_URL}/{fname}"
         print(url)
 
-        r = requests.get(url, timeout=300, verify=False)
+        r = requests.get(url, timeout=300, verify=certifi.where(),)
         print(fy, r.status_code,r.headers.get("Content-Type"),len(r.content))
 
         if r.status_code != 200:
@@ -217,13 +218,10 @@ class ReturnFlowComponent:
         dmr = dmr[
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
-            & dmr["PARAMETER_DESC"]
-            == "Flow, in conduit or thru treatment plant"
+            & (dmr["PARAMETER_CODE"].astype(str).str.strip() == "50050")
         ].copy()
 
-        
-        
-
+        print("Flow rows after date and parameter filter:", len(dmr))
         dmr["FLOW_MGD"] = pd.to_numeric(
             dmr["DMR_VALUE_STANDARD_UNITS"],
             errors="coerce",
@@ -308,8 +306,8 @@ class ReturnFlowComponent:
         )
 
         feature_monthly["FLOW_ACFT_MONTH"] = mgd_to_afday(
-            feature_monthly["FLOW_MGD"]*
-            feature_monthly["days_in_month"],
+            feature_monthly["FLOW_MGD"])
+            *feature_monthly["days_in_month"],
         )
         
         
@@ -326,7 +324,7 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         
         resp = requests.get(
-            OUTFALL_URL,timeout=120,)
+            OUTFALL_URL,timeout=120,verify=certifi.where(),)
 
         resp.raise_for_status()
 
