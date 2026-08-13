@@ -9,6 +9,7 @@ from tx_fwi.sources.base import registry
 from tx_fwi.transforms.units import mgd_to_afday
 import io
 import zipfile
+import certifi
 
 REQUIRED_OUT_COLS = [
     "date",
@@ -31,7 +32,7 @@ BASE_URL = (
     "NPDES_by_state_year"
 )
 
-OUTFALL_URL = (
+PERM_FEATURE_NMBR_URL = (
     "https://gisweb.tceq.texas.gov/arcgis/rest/services/"
     "Public/WW_oufalls/MapServer/0/query"
     "?outFields=*"
@@ -85,7 +86,7 @@ class ReturnFlowComponent:
 
     def _build_feature_debug(self, feature_monthly):
         """
-        One row per permit/month with one MGD column per feature/outfall,
+        One row per permit/month with one MGD column per feature/PERM_FEATURE_NMBR,
         plus total MGD and total acre-ft/month.
         """
 
@@ -142,11 +143,9 @@ class ReturnFlowComponent:
         url = f"{BASE_URL}/{fname}"
         print(url)
 
-        r = requests.get(url, timeout=300, verify=False)
+        r = requests.get(url, timeout=300, verify=certifi.where(),)
         print(fy, r.status_code,r.headers.get("Content-Type"),len(r.content))
-
         if r.status_code != 200:
-            print(f"[ReturnFlow] Failed FY {fy}")
             return None
 
         return io.BytesIO(r.content)
@@ -200,25 +199,27 @@ class ReturnFlowComponent:
 
         dmr = self._load_dmr(start_fy, end_fy)
 
+        print("Loaded DMR rows:", len(dmr))
+
         if dmr.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
 
         # --------------------------------------------------
         # Flow records only
         # --------------------------------------------------
-        
+        print(dmr.columns)
         dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
             dmr["MONITORING_PERIOD_END_DATE"],
             errors="coerce",
         )
+        print(dmr["MONITORING_PERIOD_END_DATE"] .min(), dmr["MONITORING_PERIOD_END_DATE"] .max())
         dmr = dmr[
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
-            & dmr["PARAMETER_DESC"]
-            == "Flow, in conduit or thru treatment plant"
+            & (dmr["PARAMETER_CODE"].astype(str).str.strip() == "50050")
         ].copy()
 
-
+        print("Flow rows after date and parameter filter:", len(dmr))
         dmr["FLOW_MGD"] = pd.to_numeric(
             dmr["DMR_VALUE_STANDARD_UNITS"],
             errors="coerce",
@@ -235,10 +236,10 @@ class ReturnFlowComponent:
         if dmr.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
         # --------------------------------------------------
-        # Permit, outfall, and ID normalization
+        # Permit, PERM_FEATURE_NMBR, and ID normalization
         # --------------------------------------------------
         
-        dmr["NPDES_NUM"] = self._normalize_npdes(
+        dmr["PERMIT_NUM"] = self._normalize_npdes(
             dmr["EXTERNAL_PERMIT_NMBR"]
         )
 
@@ -247,7 +248,7 @@ class ReturnFlowComponent:
         )
         dmr = dmr.dropna(
             subset=[
-                "NPDES_NUM","PERM_FEATURE_NMBR",
+                "PERMIT_NUM","PERM_FEATURE_NMBR",
             ]
         )
         # --------------------------------------------------
@@ -256,8 +257,8 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         dedup_cols = [
             "EXTERNAL_PERMIT_NMBR",
-            "NPDES_NUM",
-            "PERM_FEATURE_NMBR", #multiple feature/outfall may be reported separately
+            "PERMIT_NUM",
+            "PERM_FEATURE_NMBR", #multiple feature/PERM_FEATURE_NMBR may be reported separately
             "MONITORING_PERIOD_END_DATE",
             "PARAMETER_CODE",
             "DMR_VALUE_ID",
@@ -272,18 +273,19 @@ class ReturnFlowComponent:
         dmr = dmr.drop_duplicates(
             subset=dedup_cols
         )
+        print("DMR length after dedup:", len(dmr))
         # --------------------------------------------------
         # Monthly feature-level flow
         #
         #
-        # keep each permit outfall separate before spatial join.
+        # keep each permit PERM_FEATURE_NMBR separate before spatial join.
         # --------------------------------------------------
         feature_monthly = (
             dmr
             .groupby(
                 [
                     "EXTERNAL_PERMIT_NMBR",
-                    "NPDES_NUM",
+                    "PERMIT_NUM",
                     "PERM_FEATURE_NMBR",
                     "MONITORING_PERIOD_END_DATE",
                 ],
@@ -294,16 +296,15 @@ class ReturnFlowComponent:
                 n_dmr_rows=("FLOW_MGD", "size"),
             )
         )
-
+        print("Feature monthly rows:", len(feature_monthly))
+        print(feature_monthly[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
         feature_monthly["days_in_month"] = (
             feature_monthly["MONITORING_PERIOD_END_DATE"]
             .dt.days_in_month
         )
 
-        feature_monthly["FLOW_ACFT_MONTH"] = mgd_to_afday(
-            feature_monthly["FLOW_MGD"]*
-            feature_monthly["days_in_month"],
-        )
+        feature_monthly["FLOW_ACFT_MONTH"] = mgd_to_afday(feature_monthly["FLOW_MGD"])*feature_monthly["days_in_month"]
+        
         
         
         # --------------------------------------------------
@@ -315,47 +316,52 @@ class ReturnFlowComponent:
         self._write_debug_csv(debug)
         
         # --------------------------------------------------
-        # Load outfalls
+        # Load PERM_FEATURE_NMBRs
         # --------------------------------------------------
         
         resp = requests.get(
-            OUTFALL_URL,timeout=120,)
+            PERM_FEATURE_NMBR_URL,timeout=120,verify=certifi.where(),)
 
         resp.raise_for_status()
 
         geojson = resp.json()
         
 
-        outfalls = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
-        print(outfalls.columns.tolist())
-        outfalls["NPDES_NUM"] = self._normalize_npdes(
-            outfalls["NPDES_NUM"]
+        PERM_FEATURE_NMBRs = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
+        print("PERM_FEATURE_NMBRs rows:", len(PERM_FEATURE_NMBRs))
+        print(PERM_FEATURE_NMBRs.columns.tolist())
+        PERM_FEATURE_NMBRs["PERMIT_NUM"] = self._normalize_npdes(
+            PERM_FEATURE_NMBRs["NPDES_NUM"]
         )
-        outfalls["PERM_FEATURE_NMBR"] = self._normalize_outfall(PERM_FEATURE_NMBRs["OUTFALL"])
-        outfalls = outfalls.dropna(
+        PERM_FEATURE_NMBRs["PERM_FEATURE_NMBR"] = self._normalize_outfall(PERM_FEATURE_NMBRs["OUTFALL"])
+        print("PERM_FEATURE_NMBRs rows before dropna:", len(PERM_FEATURE_NMBRs))
+        PERM_FEATURE_NMBRs = PERM_FEATURE_NMBRs.dropna(
             subset=[
-                "NPDES_NUM",
+                "PERMIT_NUM",
                 "PERM_FEATURE_NMBR",
                 "geometry",
             ]
         )
+        print("PERM_FEATURE_NMBRs rows after dropna:", len(PERM_FEATURE_NMBRs))
+        print(PERM_FEATURE_NMBRs.columns.tolist())
+        print(PERM_FEATURE_NMBRs[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
         # --------------------------------------------------
-        # One geometry per permit + outfall.
+        # One geometry per permit + PERM_FEATURE_NMBR.
         #
         # This prevents the old issue:
-        # joining permit total to all outfalls and multiplying flow.
+        # joining permit total to all PERM_FEATURE_NMBRs and multiplying flow.
         # --------------------------------------------------
-        outfalls_feature = (
-            outfalls
+        PERM_FEATURE_NMBRs_feature = (
+            PERM_FEATURE_NMBRs
             .drop_duplicates(
                 subset=[
-                    "NPDES_NUM",
+                    "PERMIT_NUM",
                     "PERM_FEATURE_NMBR",
                 ]
             )
             [
                 [
-                    "NPDES_NUM",
+                    "PERMIT_NUM",
                     "PERM_FEATURE_NMBR",
                     "geometry",
                 ]
@@ -364,11 +370,11 @@ class ReturnFlowComponent:
  
 
         # --------------------------------------------------
-        # Join DMR permit + feature -> TCEQ permit + outfall
+        # Join DMR permit + feature -> TCEQ permit + PERM_FEATURE_NMBR
         # --------------------------------------------------
         dmr_geo = feature_monthly.merge(
-            outfalls_feature,
-            on=["NPDES_NUM","PERM_FEATURE_NMBR"],
+            PERM_FEATURE_NMBRs_feature,
+            on=["PERMIT_NUM","PERM_FEATURE_NMBR"],
             how="left",
             indicator= True
         )
@@ -378,7 +384,7 @@ class ReturnFlowComponent:
         dmr_geo[
             [
                 "EXTERNAL_PERMIT_NMBR",
-                "NPDES_NUM",
+                "PERMIT_NUM",
                 "PERM_FEATURE_NMBR",
                 "MONITORING_PERIOD_END_DATE",
                 "FLOW_MGD",
@@ -386,9 +392,10 @@ class ReturnFlowComponent:
                 "_merge",
             ]
         ].to_csv(
-           "return_dmr_outfall_join_debug.csv",
+           "return_dmr_PERM_FEATURE_NMBR_join_debug.csv",
             index=False,
         )
+        print(dmr_geo["_merge"].value_counts(dropna=False))
 
         missing_geo = dmr_geo[dmr_geo["_merge"] == "left_only"].copy()
 
@@ -396,21 +403,21 @@ class ReturnFlowComponent:
             missing_geo[
                 [
                     "EXTERNAL_PERMIT_NMBR",
-                    "NPDES_NUM",
+                    "PERMIT_NUM",
                     "PERM_FEATURE_NMBR",
                     "MONITORING_PERIOD_END_DATE",
                     "FLOW_MGD",
                     "FLOW_ACFT_MONTH",
                 ]
             ].to_csv(
-                "return_dmr_missing_outfall_geometry.csv",
+                "return_dmr_missing_PERM_FEATURE_NMBR_geometry.csv",
                 index=False,
             )
 
             print(
-                "[ReturnFlow] Missing outfall geometry rows: "
+                "[ReturnFlow] Missing PERM_FEATURE_NMBR geometry rows: "
                 f"{len(missing_geo)}. "
-                "See return_dmr_missing_outfall_geometry.csv"
+                "See return_dmr_missing_PERM_FEATURE_NMBR_geometry.csv"
             )
 
         dmr_geo = dmr_geo[
@@ -490,13 +497,13 @@ class ReturnFlowComponent:
                         sorted(x.astype(str).unique())
                     ),
                 ),
-                outfalls_included=(
+                PERM_FEATURE_NMBRs_included=(
                     "PERM_FEATURE_NMBR",
                     lambda x: ";".join(
                         sorted(x.astype(str).unique())
                     ),
                 ),
-                n_permit_outfalls=(
+                n_permit_PERM_FEATURE_NMBRs=(
                     "PERM_FEATURE_NMBR",
                     "size",
                 ),
