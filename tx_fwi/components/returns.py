@@ -239,16 +239,16 @@ class ReturnFlowComponent:
         # Permit, outfall, and ID normalization
         # --------------------------------------------------
         
-        dmr["NPDES_NUM"] = self._normalize_npdes(
+        dmr["PERMIT_NUM"] = self._normalize_npdes(
             dmr["EXTERNAL_PERMIT_NMBR"]
         )
 
-        dmr["PERM_FEATURE_NMBR"] = self._normalize_outfall(
-            dmr["PERM_FEATURE_NMBR"]
+        dmr["OUTFALL"] = self._normalize_outfall(
+            dmr["OUTFALL"]
         )
         dmr = dmr.dropna(
             subset=[
-                "NPDES_NUM","PERM_FEATURE_NMBR",
+                "PERMIT_NUM","OUTFALL",
             ]
         )
         # --------------------------------------------------
@@ -257,8 +257,8 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         dedup_cols = [
             "EXTERNAL_PERMIT_NMBR",
-            "NPDES_NUM",
-            "PERM_FEATURE_NMBR", #multiple feature/outfall may be reported separately
+            "PERMIT_NUM",
+            "OUTFALL", #multiple feature/outfall may be reported separately
             "MONITORING_PERIOD_END_DATE",
             "PARAMETER_CODE",
             "DMR_VALUE_ID",
@@ -285,8 +285,8 @@ class ReturnFlowComponent:
             .groupby(
                 [
                     "EXTERNAL_PERMIT_NMBR",
-                    "NPDES_NUM",
-                    "PERM_FEATURE_NMBR",
+                    "PERMIT_NUM",
+                    "OUTFALL",
                     "MONITORING_PERIOD_END_DATE",
                 ],
                 as_index=False,
@@ -297,7 +297,7 @@ class ReturnFlowComponent:
             )
         )
         print("Feature monthly rows:", len(feature_monthly))
-        print(feature_monthly[ ["NPDES_NUM","PERM_FEATURE_NMBR"]].head(20))
+        print(feature_monthly[ ["PERMIT_NUM","OUTFALL"]].head(20))
         feature_monthly["days_in_month"] = (
             feature_monthly["MONITORING_PERIOD_END_DATE"]
             .dt.days_in_month
@@ -330,20 +330,21 @@ class ReturnFlowComponent:
         outfalls = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
         print("Outfalls rows:", len(outfalls))
         print(outfalls.columns.tolist())
-        outfalls["NPDES_NUM"] = self._normalize_npdes(
-            outfalls["NPDES_NUM"]
+        outfalls["PERMIT_NUM"] = self._normalize_npdes(
+            outfalls["PERMIT_NUM"]
         )
+        
         print("Outfalls rows before dropna:", len(outfalls))
         outfalls = outfalls.dropna(
             subset=[
-                "NPDES_NUM",
+                "PERMIT_NUM",
                 "PERM_FEATURE_NMBR",
                 "geometry",
             ]
         )
         print("Outfalls rows after dropna:", len(outfalls))
         print(outfalls.columns.tolist())
-        print(outfalls[ ["NPDES_NUM","PERM_FEATURE_NMBR"]].head(20))
+        print(outfalls[ ["PERMIT_NUM","OUTFALL"]].head(20))
         # --------------------------------------------------
         # One geometry per permit + outfall.
         #
@@ -354,14 +355,14 @@ class ReturnFlowComponent:
             outfalls
             .drop_duplicates(
                 subset=[
-                    "NPDES_NUM",
-                    "PERM_FEATURE_NMBR",
+                    "PERMIT_NUM",
+                    "OUTFALL",
                 ]
             )
             [
                 [
-                    "NPDES_NUM",
-                    "PERM_FEATURE_NMBR",
+                    "PERMIT_NUM",
+                    "OUTFALL",
                     "geometry",
                 ]
             ]
@@ -373,7 +374,7 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         dmr_geo = feature_monthly.merge(
             outfalls_feature,
-            on=["NPDES_NUM","PERM_FEATURE_NMBR"],
+            on=["PERMIT_NUM","OUTFALL"],
             how="left",
             indicator= True
         )
@@ -383,8 +384,8 @@ class ReturnFlowComponent:
         dmr_geo[
             [
                 "EXTERNAL_PERMIT_NMBR",
-                "NPDES_NUM",
-                "PERM_FEATURE_NMBR",
+                "PERMIT_NUM",
+                "OUTFALL",
                 "MONITORING_PERIOD_END_DATE",
                 "FLOW_MGD",
                 "FLOW_ACFT_MONTH",
@@ -402,8 +403,8 @@ class ReturnFlowComponent:
             missing_geo[
                 [
                     "EXTERNAL_PERMIT_NMBR",
-                    "NPDES_NUM",
-                    "PERM_FEATURE_NMBR",
+                    "PERMIT_NUM",
+                    "OUTFALL",
                     "MONITORING_PERIOD_END_DATE",
                     "FLOW_MGD",
                     "FLOW_ACFT_MONTH",
