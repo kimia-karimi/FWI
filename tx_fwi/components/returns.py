@@ -243,7 +243,7 @@ class ReturnFlowComponent:
             dmr["EXTERNAL_PERMIT_NMBR"]
         )
 
-        dmr["PERM_FEATURE_NMBR"] = self._normalize_PERM_FEATURE_NMBR(
+        dmr["PERM_FEATURE_NMBR"] = self._normalize_outfall(
             dmr["PERM_FEATURE_NMBR"]
         )
         dmr = dmr.dropna(
