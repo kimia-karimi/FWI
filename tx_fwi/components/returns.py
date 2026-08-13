@@ -144,7 +144,7 @@ class ReturnFlowComponent:
         print(url)
 
         r = requests.get(url, timeout=300, verify=certifi.where(),)
-        print(fy, r.status_code,r.headers.get("Content-Type"),len(r.content))
+        #print(fy, r.status_code,r.headers.get("Content-Type"),len(r.content))
         if r.status_code != 200:
             return None
 
@@ -207,19 +207,19 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         # Flow records only
         # --------------------------------------------------
-        print(dmr.columns)
+        #print(dmr.columns)
         dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
             dmr["MONITORING_PERIOD_END_DATE"],
             errors="coerce",
         )
-        print(dmr["MONITORING_PERIOD_END_DATE"] .min(), dmr["MONITORING_PERIOD_END_DATE"] .max())
+        #print(dmr["MONITORING_PERIOD_END_DATE"] .min(), dmr["MONITORING_PERIOD_END_DATE"] .max())
         dmr = dmr[
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
             & (dmr["PARAMETER_CODE"].astype(str).str.strip() == "50050")
         ].copy()
 
-        print("Flow rows after date and parameter filter:", len(dmr))
+        #print("Flow rows after date and parameter filter:", len(dmr))
         dmr["FLOW_MGD"] = pd.to_numeric(
             dmr["DMR_VALUE_STANDARD_UNITS"],
             errors="coerce",
@@ -296,8 +296,8 @@ class ReturnFlowComponent:
                 n_dmr_rows=("FLOW_MGD", "size"),
             )
         )
-        print("Feature monthly rows:", len(feature_monthly))
-        print(feature_monthly[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
+        #print("Feature monthly rows:", len(feature_monthly))
+        #print(feature_monthly[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
         feature_monthly["days_in_month"] = (
             feature_monthly["MONITORING_PERIOD_END_DATE"]
             .dt.days_in_month
@@ -328,8 +328,8 @@ class ReturnFlowComponent:
         
 
         PERM_FEATURE_NMBRs = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
-        print("PERM_FEATURE_NMBRs rows:", len(PERM_FEATURE_NMBRs))
-        print(PERM_FEATURE_NMBRs.columns.tolist())
+        #print("PERM_FEATURE_NMBRs rows:", len(PERM_FEATURE_NMBRs))
+        #print(PERM_FEATURE_NMBRs.columns.tolist())
         PERM_FEATURE_NMBRs["PERMIT_NUM"] = self._normalize_npdes(
             PERM_FEATURE_NMBRs["NPDES_NUM"]
         )
@@ -343,8 +343,8 @@ class ReturnFlowComponent:
             ]
         )
         print("PERM_FEATURE_NMBRs rows after dropna:", len(PERM_FEATURE_NMBRs))
-        print(PERM_FEATURE_NMBRs.columns.tolist())
-        print(PERM_FEATURE_NMBRs[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
+        #print(PERM_FEATURE_NMBRs.columns.tolist())
+        #print(PERM_FEATURE_NMBRs[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
         # --------------------------------------------------
         # One geometry per permit + PERM_FEATURE_NMBR.
         #
@@ -395,7 +395,7 @@ class ReturnFlowComponent:
            "return_dmr_PERM_FEATURE_NMBR_join_debug.csv",
             index=False,
         )
-        print(dmr_geo["_merge"].value_counts(dropna=False))
+        #print(dmr_geo["_merge"].value_counts(dropna=False))
 
         missing_geo = dmr_geo[dmr_geo["_merge"] == "left_only"].copy()
 
