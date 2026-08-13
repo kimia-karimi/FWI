@@ -207,7 +207,7 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         # Flow records only
         # --------------------------------------------------
-        print(dmr["PARAMETER_DESC"] .value_counts().head(20))
+        print(dmr.columns)
         dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
             dmr["MONITORING_PERIOD_END_DATE"],
             errors="coerce",
@@ -229,7 +229,7 @@ class ReturnFlowComponent:
             subset=[
                 "MONITORING_PERIOD_END_DATE",
                 "EXTERNAL_PERMIT_NMBR",
-                "PERM_FEATURE_NMBR",
+                "OUTFALL",
                 "FLOW_MGD",
             ]
         )
@@ -338,7 +338,7 @@ class ReturnFlowComponent:
         outfalls = outfalls.dropna(
             subset=[
                 "PERMIT_NUM",
-                "PERM_FEATURE_NMBR",
+                "OUTFALL",
                 "geometry",
             ]
         )
