@@ -307,8 +307,8 @@ class ReturnFlowComponent:
 
         feature_monthly["FLOW_ACFT_MONTH"] = mgd_to_afday(
             feature_monthly["FLOW_MGD"])
-            *feature_monthly["days_in_month"],
-        )
+            *feature_monthly["days_in_month"]
+        
         
         
         # --------------------------------------------------
