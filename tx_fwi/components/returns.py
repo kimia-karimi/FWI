@@ -147,15 +147,11 @@ class ReturnFlowComponent:
         print(fy, r.status_code,r.headers.get("Content-Type"),len(r.content))
        
 
-        if r.status_code != 200:
-            print("HTTP error:", r.status_code)
-            print(r.text[:500])
-            break
-
         try:
             payload = r.json()
         except Exception:
             print("Non-JSON response:")
+            print(r.status_code)
             print(r.text[:1000])
             break
         if r.status_code != 200:
