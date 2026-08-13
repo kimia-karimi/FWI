@@ -219,7 +219,7 @@ class ReturnFlowComponent:
         ].copy()
 
         print(dmr["PARAMETER_DESC"] .value_counts().head(20))
-        print(dmr_geo["_merge"].value_counts())
+        
 
         dmr["FLOW_MGD"] = pd.to_numeric(
             dmr["DMR_VALUE_STANDARD_UNITS"],
@@ -393,6 +393,7 @@ class ReturnFlowComponent:
            "return_dmr_outfall_join_debug.csv",
             index=False,
         )
+        print(dmr_geo["_merge"].value_counts())
 
         missing_geo = dmr_geo[dmr_geo["_merge"] == "left_only"].copy()
 
