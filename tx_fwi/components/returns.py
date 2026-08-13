@@ -218,6 +218,8 @@ class ReturnFlowComponent:
             == "Flow, in conduit or thru treatment plant"
         ].copy()
 
+        print(dmr["PARAMETER_DESC"] .value_counts().head(20))
+        print(dmr_geo["_merge"].value_counts())
 
         dmr["FLOW_MGD"] = pd.to_numeric(
             dmr["DMR_VALUE_STANDARD_UNITS"],
@@ -305,7 +307,7 @@ class ReturnFlowComponent:
             feature_monthly["days_in_month"],
         )
         
-        
+        print(feature_monthly[ ["NPDES_NUM","PERM_FEATURE_NMBR"]].head(20))
         # --------------------------------------------------
         # Debug CSV:
         # permit, monitoring date, feature flow columns,
@@ -338,6 +340,9 @@ class ReturnFlowComponent:
                 "geometry",
             ]
         )
+
+        print(outfalls.columns.tolist())
+        print(outfalls[ ["NPDES_NUM","PERM_FEATURE_NMBR"]].head(20))
         # --------------------------------------------------
         # One geometry per permit + outfall.
         #
