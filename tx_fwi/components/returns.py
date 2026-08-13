@@ -153,7 +153,7 @@ class ReturnFlowComponent:
             print("Non-JSON response:")
             print(r.status_code)
             print(r.text[:1000])
-            break
+            return []
         if r.status_code != 200:
             print(f"[ReturnFlow] Failed FY {fy}")
             return None
