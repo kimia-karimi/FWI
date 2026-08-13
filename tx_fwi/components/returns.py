@@ -229,7 +229,7 @@ class ReturnFlowComponent:
             subset=[
                 "MONITORING_PERIOD_END_DATE",
                 "EXTERNAL_PERMIT_NMBR",
-                "OUTFALL",
+                "PERM_FEATURE_NMBR",
                 "FLOW_MGD",
             ]
         )
