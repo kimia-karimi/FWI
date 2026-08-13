@@ -336,6 +336,7 @@ class ReturnFlowComponent:
         outfalls["NPDES_NUM"] = self._normalize_npdes(
             outfalls["NPDES_NUM"]
         )
+        print("Outfalls rows before dropna:", len(outfalls))
         outfalls = outfalls.dropna(
             subset=[
                 "NPDES_NUM",
@@ -343,7 +344,7 @@ class ReturnFlowComponent:
                 "geometry",
             ]
         )
-
+        print("Outfalls rows after dropna:", len(outfalls))
         print(outfalls.columns.tolist())
         print(outfalls[ ["NPDES_NUM","PERM_FEATURE_NMBR"]].head(20))
         # --------------------------------------------------
