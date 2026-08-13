@@ -240,7 +240,7 @@ class ReturnFlowComponent:
         # --------------------------------------------------
         
         dmr["PERMIT_NUM"] = self._normalize_npdes(
-            dmr["NPDES_NUM"]
+            dmr["EXTERNAL_PERMIT_NMBR"]
         )
 
         dmr["PERM_FEATURE_NMBR"] = self._normalize_outfall(
