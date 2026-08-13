@@ -200,17 +200,20 @@ class ReturnFlowComponent:
 
         dmr = self._load_dmr(start_fy, end_fy)
 
+        print("Loaded DMR rows:", len(dmr))
+
         if dmr.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
 
         # --------------------------------------------------
         # Flow records only
         # --------------------------------------------------
-        
+        print(dmr["PARAMETER_DESC"] .value_counts().head(20))
         dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
             dmr["MONITORING_PERIOD_END_DATE"],
             errors="coerce",
         )
+        print(dmr["MONITORING_PERIOD_END_DATE"] .min(), dmr["MONITORING_PERIOD_END_DATE"] .max())
         dmr = dmr[
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
@@ -218,7 +221,7 @@ class ReturnFlowComponent:
             == "Flow, in conduit or thru treatment plant"
         ].copy()
 
-        print(dmr["PARAMETER_DESC"] .value_counts().head(20))
+        
         
 
         dmr["FLOW_MGD"] = pd.to_numeric(
