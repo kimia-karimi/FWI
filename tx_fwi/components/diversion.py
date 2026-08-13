@@ -7,7 +7,7 @@ from tx_fwi.transforms.temporal import expand_monthly_to_daily
 from tx_fwi.components.base import RunContext
 from tx_fwi.sources.base import registry
 from tx_fwi.transforms.units import mgd_to_afday
-
+import certifi
 REQUIRED_OUT_COLS = [
     "date",
     "id",
@@ -32,13 +32,13 @@ class DiversionflowComponent:
     def __init__(self, ctx):
         self.ctx = ctx
     def _fetch_all_features(self, url: str, where: str = "1=1", out_fields: str = "*", batch_size: int = 2000):
-        count = requests.get(url, verify=False, params={"where": where, "returnCountOnly": "true", "f": "json"}, timeout=60).json()["count"]
+        count = requests.get(url, verify=certifi.where(), params={"where": where, "returnCountOnly": "true", "f": "json"}, timeout=60).json()["count"]
         feats = []
         offset = 0
         while True:
             params = {"where": where, "outFields": out_fields, "f": "json",
                   "resultOffset": offset, "resultRecordCount": batch_size}
-            payload = requests.get(url, verify=False, params=params, timeout=60).json()
+            payload = requests.get(url, verify= certifi.where(), params=params, timeout=60).json()
             batch = payload.get("features", [])
             feats.extend(batch)
             if len(batch) < batch_size:
