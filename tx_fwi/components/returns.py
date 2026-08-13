@@ -244,7 +244,7 @@ class ReturnFlowComponent:
         )
 
         dmr["OUTFALL"] = self._normalize_outfall(
-            dmr["OUTFALL"]
+            dmr["PERM_FEATURE_NMBR"]
         )
         dmr = dmr.dropna(
             subset=[
