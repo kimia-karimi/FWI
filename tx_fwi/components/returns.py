@@ -277,6 +277,7 @@ class ReturnFlowComponent:
         dmr = dmr.drop_duplicates(
             subset=dedup_cols
         )
+        print("DMR length after dedup:", len(dmr))
         # --------------------------------------------------
         # Monthly feature-level flow
         #
@@ -299,7 +300,8 @@ class ReturnFlowComponent:
                 n_dmr_rows=("FLOW_MGD", "size"),
             )
         )
-
+        print("Feature monthly rows:", len(feature_monthly))
+        print(feature_monthly[ ["NPDES_NUM","PERM_FEATURE_NMBR"]].head(20))
         feature_monthly["days_in_month"] = (
             feature_monthly["MONITORING_PERIOD_END_DATE"]
             .dt.days_in_month
@@ -310,7 +312,7 @@ class ReturnFlowComponent:
             feature_monthly["days_in_month"],
         )
         
-        print(feature_monthly[ ["NPDES_NUM","PERM_FEATURE_NMBR"]].head(20))
+        
         # --------------------------------------------------
         # Debug CSV:
         # permit, monitoring date, feature flow columns,
@@ -332,6 +334,7 @@ class ReturnFlowComponent:
         
 
         outfalls = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
+        print("Outfalls rows:", len(outfalls))
         print(outfalls.columns.tolist())
         outfalls["NPDES_NUM"] = self._normalize_npdes(
             outfalls["NPDES_NUM"]
@@ -397,7 +400,7 @@ class ReturnFlowComponent:
            "return_dmr_outfall_join_debug.csv",
             index=False,
         )
-        print(dmr_geo["_merge"].value_counts())
+        print(dmr_geo["_merge"].value_counts(dropna=False))
 
         missing_geo = dmr_geo[dmr_geo["_merge"] == "left_only"].copy()
 
