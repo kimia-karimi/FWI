@@ -8,8 +8,7 @@ from tx_fwi.components.base import RunContext
 from tx_fwi.sources.base import registry
 from tx_fwi.transforms.units import mgd_to_afday
 import io
-import zipfile
-import certifi
+from tx_fwi.sources.epa_dmr import ReturnFlowSource
 
 REQUIRED_OUT_COLS = [
     "date",
@@ -25,30 +24,18 @@ REQUIRED_OUT_COLS = [
 ]
 
 
-STATE = "TX"
 
-BASE_URL = (
-    "https://echo.epa.gov/files/echodownloads/"
-    "NPDES_by_state_year"
-)
-
-PERM_FEATURE_NMBR_URL = (
-    "https://gisweb.tceq.texas.gov/arcgis/rest/services/"
-    "Public/WW_oufalls/MapServer/0/query"
-    "?outFields=*"
-    "&where=1%3D1"
-    "&f=geojson"
-)
 def fiscal_year(dt):
     dt = pd.Timestamp(dt)
     return dt.year + 1 if dt.month >= 10 else dt.year
 
-class ReturnFlowComponent:
+class ReturnComponent:
 
     name = "return"
 
     def __init__(self, ctx: RunContext):
         self.ctx = ctx
+        self.return_source = ReturnFlowSource(ctx=ctx)
     @staticmethod
     def _normalize_npdes(series):
         return (
@@ -133,61 +120,7 @@ class ReturnFlowComponent:
             
 
         return debug
-    # --------------------------------------------------
-    # Download DMR ZIP
-    # --------------------------------------------------
-    def _download_fy_zip(self, fy):
-
-        fname = f"{STATE}_FY{fy}_NPDES_DMRS_LIMITS.zip"
-
-        url = f"{BASE_URL}/{fname}"
-        print(url)
-
-        r = requests.get(url, timeout=300, verify=certifi.where(),)
-        #print(fy, r.status_code,r.headers.get("Content-Type"),len(r.content))
-        if r.status_code != 200:
-            return None
-
-        return io.BytesIO(r.content)
-
-    # --------------------------------------------------
-    # Load all DMRs
-    # --------------------------------------------------
-    def _load_dmr(self,start_fy, end_fy):
-
-        frames = []
-
-        for fy in range(start_fy, end_fy + 1):
-
-            z = self._download_fy_zip(fy)
-
-            if z is None:
-                continue
-
-            with zipfile.ZipFile(z) as zipf:
-
-                try:
-                    dmr_name = next(
-                        n
-                        for n in zipf.namelist()
-                        if "DMRS" in n.upper()
-                    )
-
-                    frames.append(
-                        pd.read_csv(
-                            zipf.open(dmr_name),
-                            low_memory=False,
-                        )
-                    )
-
-                except StopIteration:
-                    continue
-
-        if not frames:
-            return pd.DataFrame()
-
-        return pd.concat(frames, ignore_index=True)
-
+   
     # --------------------------------------------------
     # Main build
     # --------------------------------------------------
