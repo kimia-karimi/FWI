@@ -42,7 +42,7 @@ class TCEQWaterRightsSource:
 
         return records
 
-    def fetch_points (self)(self,start,end):
+    def fetch (self,start,end):
 
         rights = self._fetch_features(self.RIGHTS_URL)
 
