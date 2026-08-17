@@ -2,7 +2,7 @@
 from __future__ import annotations
 import pandas as pd
 import geopandas as gpd
-import requests
+from tx_fwi.sources.tceq_wr import TCEQWaterRightsSource
 from tx_fwi.transforms.temporal import expand_monthly_to_daily
 from tx_fwi.components.base import RunContext
 from tx_fwi.sources.base import registry
@@ -20,37 +20,21 @@ REQUIRED_OUT_COLS = [
     "count_in_basin_sum",
     "note",
 ]
-RIGHTS_URL = "https://gisweb.tceq.texas.gov/arcgis/rest/services/WaterRights/WaterRightsViewer/MapServer/13/query"
-POINTS_URL = "https://gisweb.tceq.texas.gov/arcgis/rest/services/WaterRights/WaterRightsViewer/MapServer/3/query"
+
 MONTH_MAP = {"JAN_DIV":1,"FEB_DIV":2,"MAR_DIV":3,"APR_DIV":4,"MAY_DIV":5,"JUN_DIV":6,
                      "JUL_DIV":7,"AUG_DIV":8,"SEPT_DIV":9,"OCT_DIV":10,"NOV_DIV":11,"DEC_DIV":12}
 # monthly columns 
 MONTHLY_COLS = list(MONTH_MAP.keys())
 
-class DiversionflowComponent:
+class DiversionComponent:
     name = "diversion"
     def __init__(self, ctx):
         self.ctx = ctx
-    def _fetch_all_features(self, url: str, where: str = "1=1", out_fields: str = "*", batch_size: int = 2000):
-        count = requests.get(url, verify=certifi.where(), params={"where": where, "returnCountOnly": "true", "f": "json"}, timeout=60).json()["count"]
-        feats = []
-        offset = 0
-        while True:
-            params = {"where": where, "outFields": out_fields, "f": "json",
-                  "resultOffset": offset, "resultRecordCount": batch_size}
-            payload = requests.get(url, verify= certifi.where(), params=params, timeout=60).json()
-            batch = payload.get("features", [])
-            feats.extend(batch)
-            if len(batch) < batch_size:
-                break
-            offset += batch_size
-            if len(feats) >= count:
-                break
-        return feats
+        self.rights_source = TCEQWaterRightsSource(ctx=ctx)
 
 
     def build(self, start, end):
-        # NOTE: This keeps your current approach:
+        # NOTE: This keeps the current approach:
         # - fetch water rights (layer 13) + points (layer 3)
         # - aggregate water use by WR_ID/YEAR
         # - fetch diversion points (layer 3)
@@ -60,7 +44,9 @@ class DiversionflowComponent:
 
         
         # ---- fetch rights ----
-        rights = self._fetch_all_features(RIGHTS_URL)
+        rights = self.rights_source.fetch(start=start, end=end)
+        rights = source_data["rights"]
+        pts = source_data["points"]
         df_rights = pd.DataFrame([f["attributes"] for f in rights if "attributes" in f])
         df_rights["YEAR"] = pd.to_numeric(df_rights["YEAR"],errors="coerce")
         #filter between dates
@@ -78,12 +64,12 @@ class DiversionflowComponent:
             .groupby(["WR_ID", "YEAR"], as_index=False)[MONTHLY_COLS]
             .sum(numeric_only=True)
         )
-
+        
         # ---- fetch points ----
-        pts = self._fetch_all_features(POINTS_URL)
         df_points = pd.DataFrame([f["attributes"] for f in pts if "attributes" in f])
-        if wr_merged.empty or df_points.empty:
+        if wr_merged.empty or df_points.empty or df_points.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
+
         # ---- attach coordinates ----
         #left merging to keep all the IDS. point records can include diversion points and on-channel reservoir locations
         df_points["TYPE"] = df_points["TYPE"].astype(str).str.strip()
@@ -99,9 +85,9 @@ class DiversionflowComponent:
         # Debug: how many diversion-point coordinates per WR_ID?
         point_counts = (points_div .groupby("WR_ID") .size() .reset_index(name="n_points") .sort_values("n_points", ascending=False))
 
-        print("\n[Diversion debug] diversion-point coordinates per WR_ID")
-        print(point_counts["n_points"].describe())
-        print(point_counts.head(20))
+        #print("\n[Diversion debug] diversion-point coordinates per WR_ID")
+        #print(point_counts["n_points"].describe())
+        #print(point_counts.head(20))
         # Choose ONE representative diversion point per WR_ID
         if "OBJECTID" in points_div.columns:
             points_div = points_div.sort_values(["WR_ID", "OBJECTID"])
@@ -213,16 +199,16 @@ class DiversionflowComponent:
             "diversion_monthly_by_watershed_long.csv",
            index=False
         )
-        debug_ws = "08010"
-        debug_year = 2024
+        #debug_ws = "08010"
+        #debug_year = 2024
 
-        tmp = wsd_wr.copy()
+        #tmp = wsd_wr.copy()
 
-        tmp["WS_ID"] = tmp["WS_ID"].astype(str).str.strip().str.zfill(5)
-        tmp["YEAR"] = pd.to_numeric(tmp["YEAR"], errors="coerce").astype("Int64")
+        #tmp["WS_ID"] = tmp["WS_ID"].astype(str).str.strip().str.zfill(5)
+        #tmp["YEAR"] = pd.to_numeric(tmp["YEAR"], errors="coerce").astype("Int64")
 
-        check = tmp[(tmp["WS_ID"] == debug_ws) & (tmp["YEAR"] == debug_year)].copy()
-        print(f"\n[Diversion debug] Monthly diversion for WS_ID={debug_ws}, YEAR={debug_year}")
+        #check = tmp[(tmp["WS_ID"] == debug_ws) & (tmp["YEAR"] == debug_year)].copy()
+        #print(f"\n[Diversion debug] Monthly diversion for WS_ID={debug_ws}, YEAR={debug_year}")
 
         month_lookup = {
             "JAN_DIV": "Jan",
