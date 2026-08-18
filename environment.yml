@@ -1,0 +1,51 @@
+name: fwi
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+
+  # Core
+  - pandas
+  - numpy
+  - scipy
+
+  # GIS
+  - geopandas
+  - shapely
+  - pyproj
+  - fiona
+  - rtree
+
+  # Parquet
+  - pyarrow
+  - fastparquet
+
+  # Remote services
+  - requests
+  - urllib3
+  - certifi
+
+  # NetCDF
+  - xarray
+  - netcdf4
+  - h5netcdf
+
+  # Visualization
+  - matplotlib
+  - seaborn
+
+  # Utilities
+  - pyyaml
+  - tqdm
+  - python-dateutil
+  - pdfplumber
+
+  # Jupyter
+  - jupyterlab
+
+  # Optional
+  - pip
+
+  - pip:
+      - snowflake-connector-python
+      - snowflake-snowpark-python
