@@ -66,7 +66,21 @@ class LocalGagedComponent:
     def build(self, start, end) -> pd.DataFrame:
 
         registry = self.ctx.registry.load_watersheds()
-        reg = registry[registry["HAS_GAGED"] == 1].copy()
+        reg = registry[(registry["HAS_GAGED"] == 1)| (registry["SPECIAL"].notna())].copy()
+        special_groups = {}
+
+        for group, grp in registry.groupby("SPECIAL"):
+            if pd.isna(group):
+                continue
+
+            primary = grp.loc[grp["HAS_GAGED"] == 1]
+
+            if len(primary) != 1:
+                raise ValueError(
+                    f"{group} must have exactly one HAS_GAGED=1 watershed"
+                )
+
+            special_groups[group] = str(primary.iloc[0]["WS_ID"])
 
         rows = []
 
@@ -112,7 +126,12 @@ class LocalGagedComponent:
             df["component"] = self.name
             df["source"] = str(source).lower()
             df["flow_role"] = "adjusted" if pd.notna(special) else "direct"
-            df["count_in_basin_sum"] = 1
+
+            if pd.notna(special) and pd.isna(gage_id):
+                primary_ws = special_groups[special]
+                df["count_in_basin_sum"] =int(ws_id == primary_ws)
+            else:
+                df["count_in_basin_sum"] = 1
             df["note"] = special if pd.notna(special) else None
 
             rows.append(df)
