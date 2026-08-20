@@ -109,11 +109,11 @@ def run_all(start: str | None = None, end: str | None = None):
     # --------------------------------------------------------------
     # Component 3: Ungaged flow 
     # --------------------------------------------------------------
-    #print("\nRunning ungaged flow component...")
+    print("\nRunning ungaged flow component...")
 
-    #comp_ungaged = UngagedComponent(ctx)
-    #n_ungaged = comp_ungaged.run(start=start_dt, end=end_dt)
-    #print(f"Ungaged rows added: {n_ungaged:,}")
+    comp_ungaged = UngagedComponent(ctx)
+    n_ungaged = comp_ungaged.run(start=start_dt, end=end_dt)
+    print(f"Ungaged rows added: {n_ungaged:,}")
     
     # --------------------------------------------------------------
     # Component 4: Diversion 
