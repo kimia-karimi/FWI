@@ -12,8 +12,8 @@ from tx_fwi.components.base import RunContext
 # Components
 from tx_fwi.components.gaged import LocalGagedComponent
 from tx_fwi.components.gaged_upstream import UpstreamGagedComponent
-from tx_fwi.components.diversion import DiversionflowComponent
-from tx_fwi.components.returns import ReturnFlowComponent
+from tx_fwi.components.diversion import DiversionfComponent
+from tx_fwi.components.returns import ReturnComponent
 from tx_fwi.components.ungaged import UngagedComponent
 # ------------------------------------------------------------------
 # DEFAULT PATHS (UNC-friendly)
@@ -120,7 +120,7 @@ def run_all(start: str | None = None, end: str | None = None):
     # --------------------------------------------------------------
     print("\nRunning diversion component...")
 
-    comp_diversion = DiversionflowComponent(ctx)
+    comp_diversion = DiversionComponent(ctx)
     n_diversion = comp_diversion.run(start=start_dt, end=end_dt)
 
     print(f"Diversion rows added: {n_diversion:,}")
@@ -129,7 +129,7 @@ def run_all(start: str | None = None, end: str | None = None):
     # --------------------------------------------------------------
     print("\nRunning return component...")
 
-    comp_return = ReturnFlowComponent(ctx)
+    comp_return = ReturnComponent(ctx)
     n_return = comp_return.run(start=start_dt, end=end_dt)
     
     print(f"Return rows added: {n_return:,}")
