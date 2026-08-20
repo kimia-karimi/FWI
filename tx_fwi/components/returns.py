@@ -130,7 +130,7 @@ class ReturnComponent:
         start_fy = fiscal_year(start_ts)
         end_fy = fiscal_year(end_ts)
 
-        dmr = self._load_dmr(start_fy, end_fy)
+        dmr = self.return_source_load_dmr(start_fy, end_fy)
 
         print("Loaded DMR rows:", len(dmr))
 
