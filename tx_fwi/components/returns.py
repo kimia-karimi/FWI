@@ -8,7 +8,7 @@ from tx_fwi.components.base import RunContext
 from tx_fwi.sources.base import registry
 from tx_fwi.transforms.units import mgd_to_afday
 import io
-from tx_fwi.sources.epa_dmr import ReturnFlowSource, _load_dmr
+from tx_fwi.sources.epa_dmr import ReturnFlowSource
 
 REQUIRED_OUT_COLS = [
     "date",
