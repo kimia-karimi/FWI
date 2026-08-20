@@ -126,7 +126,7 @@ def build_monthly_estuary_flow(daily_df: pd.DataFrame) -> pd.DataFrame:
 
     df["Year"] = df[date_col].dt.year.astype("Int64")
     df["Month"] = df[date_col].dt.month.astype("Int64")
-    df["Estuary"] = df[estuary_col].astype(str).str.strip()
+    df["Estuary"] = df[estuary_col].astype(str).str.strip().str.replace(r"\s+", " ", regex=True)
 
     grouped = (
         df.groupby(["Year", "Month", "Estuary", "component_norm"], dropna=False)[value_col]
