@@ -1,5 +1,5 @@
 from pathlib import Path
-from tx_fwi.storage import Storage
+from tx_fwi.storage.storage import Storage
 from tx_fwi.components.base import RunContext
 from tx_fwi.components.gaged import USGSGaged
 from tx_fwi.components.diversion import Diversion
