@@ -12,7 +12,7 @@ from tx_fwi.components.base import RunContext
 # Components
 from tx_fwi.components.gaged import LocalGagedComponent
 from tx_fwi.components.gaged_upstream import UpstreamGagedComponent
-from tx_fwi.components.diversion import DiversionfComponent
+from tx_fwi.components.diversion import DiversionComponent
 from tx_fwi.components.returns import ReturnComponent
 from tx_fwi.components.ungaged import UngagedComponent
 # ------------------------------------------------------------------
