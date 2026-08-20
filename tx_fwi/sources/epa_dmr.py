@@ -107,7 +107,7 @@ class ReturnFlowSource:
             crs="EPSG:4326",
         )
 
-     def fetch(self, start_fy, end_fy):
+    def fetch(self, start_fy, end_fy):
         return {
             "dmr": self.load_dmr(start_fy, end_fy),
             "perm_feature_nmbrs": self.load_perm_feature_nmbrs(),
