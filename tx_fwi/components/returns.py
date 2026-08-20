@@ -454,7 +454,7 @@ class ReturnComponent:
                 columns={
                     "value_acft_month": "value",
                     "WS_ID": "ws_id",
-                    "Estuary": "estuary",
+                    "EST_GROUP": "estuary",
                 }
             ),
             year_col="year",
