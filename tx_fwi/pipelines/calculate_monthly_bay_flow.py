@@ -151,9 +151,9 @@ def build_monthly_estuary_flow(daily_df: pd.DataFrame) -> pd.DataFrame:
         if col not in wide.columns:
             wide[col] = 0.0
 
+    wide["gaged"] = wide["gaged"]+ wide["gaged_upstream"]
     wide["fresh_in"] = (
         wide["gaged"]
-        + wide["gaged_upstream"]
         + wide["model"]
         - wide["diversion"]
         + wide["return"]
