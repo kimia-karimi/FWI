@@ -254,7 +254,7 @@ class ReturnComponent:
         # --------------------------------------------------
         
         resp = requests.get(
-            PERM_FEATURE_NMBR_URL,timeout=120,verify=certifi.where(),)
+            self.return_source.PERM_FEATURE_NMBR_URL,timeout=120,verify=certifi.where(),)
 
         resp.raise_for_status()
 
