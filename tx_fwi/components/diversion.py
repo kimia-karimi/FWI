@@ -44,7 +44,7 @@ class DiversionComponent:
 
         
         # ---- fetch rights ----
-        rights = self.rights_source.fetch(start=start, end=end)
+        source_data = self.rights_source.fetch(start=start, end=end)
         rights = source_data["rights"]
         pts = source_data["points"]
         df_rights = pd.DataFrame([f["attributes"] for f in rights if "attributes" in f])
