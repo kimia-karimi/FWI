@@ -37,7 +37,7 @@ class TCEQWaterRightsSource:
                 break
 
             offset += batch_size
-            if len(records) >= count:
+            if len(records) >= records:
                 break
 
         return records
