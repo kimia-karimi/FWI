@@ -129,8 +129,9 @@ class ReturnComponent:
         end_ts = pd.Timestamp(end)
         start_fy = fiscal_year(start_ts)
         end_fy = fiscal_year(end_ts)
+        source = ReturnFlowSource(ctx=self.ctx)
 
-        dmr = self.source.load_dmr(start_fy, end_fy)
+        dmr = source._load_dmr(start_fy, end_fy)
 
         print("Loaded DMR rows:", len(dmr))
 
