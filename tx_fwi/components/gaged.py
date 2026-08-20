@@ -87,7 +87,7 @@ class LocalGagedComponent:
         for _, r in reg.iterrows():
 
             ws_id = str(r["WS_ID"])
-            estuary = r.get("Estuary")
+            estuary = r.get("EST_GROUP")
             source = r.get("G_SOURCE")
             gage_id = r.get("GAGE_ID")
             special = r.get("SPECIAL")
