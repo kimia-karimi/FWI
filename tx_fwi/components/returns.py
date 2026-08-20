@@ -241,14 +241,7 @@ class ReturnComponent:
         
         
         
-        # --------------------------------------------------
-        # Debug CSV:
-        # permit, monitoring date, feature flow columns,
-        # overall MGD, and overall acre-ft/month.
-        # --------------------------------------------------
-        debug = self._build_feature_debug(feature_monthly)
-        self._write_debug_csv(debug)
-        
+       
         # --------------------------------------------------
         # Load PERM_FEATURE_NMBRs
         # --------------------------------------------------
@@ -315,20 +308,7 @@ class ReturnComponent:
         
         # Optional join-quality debug
 
-        dmr_geo[
-            [
-                "EXTERNAL_PERMIT_NMBR",
-                "PERMIT_NUM",
-                "PERM_FEATURE_NMBR",
-                "MONITORING_PERIOD_END_DATE",
-                "FLOW_MGD",
-                "FLOW_ACFT_MONTH",
-                "_merge",
-            ]
-        ].to_csv(
-           "return_dmr_PERM_FEATURE_NMBR_join_debug.csv",
-            index=False,
-        )
+        
         #print(dmr_geo["_merge"].value_counts(dropna=False))
 
         missing_geo = dmr_geo[dmr_geo["_merge"] == "left_only"].copy()
