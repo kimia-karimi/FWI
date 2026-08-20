@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from tx_fwi.storage import Storage
-from tx_fwi.registry import Registry
+from tx_fwi.registry.registry import Registry
 from tx_fwi.components.base import RunContext
 
 # Components
