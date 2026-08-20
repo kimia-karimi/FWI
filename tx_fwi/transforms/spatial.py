@@ -36,6 +36,6 @@ def assign_points_to_watersheds(
         w = w.set_crs(crs)
     w = w.to_crs(gpts.crs)
 
-    joined = gpd.sjoin(gpts, w[[ws_col, "Estuary", "geometry"]], how="left", predicate=predicate)
+    joined = gpd.sjoin(gpts, w[[ws_col, "EST_GROUP", "geometry"]], how="left", predicate=predicate)
     joined[ws_col] = joined[ws_col].astype(str).str.strip().apply(lambda x: x.zfill(5) if x.isdigit() else x)
     return joined
