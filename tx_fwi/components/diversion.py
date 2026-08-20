@@ -115,7 +115,7 @@ class DiversionComponent:
         # Merge aggregated rights to one coordinate per WR_ID
         wr_coord = wr_merged.merge(points_one[["WR_ID", "LAT_DD", "LONG_DD"]], on="WR_ID", how="left")
         # spatial join to watershed registry
-        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "Estuary", "geometry"]])
+        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "EST_GROUP", "geometry"]])
 
         gdf_points = gpd.GeoDataFrame(
             wr_coord,
@@ -130,7 +130,7 @@ class DiversionComponent:
             joined[c] = pd.to_numeric(joined[c], errors="coerce").fillna(0.0)
 
     
-        for estuary, grp in joined.groupby("Estuary"):
+        for estuary, grp in joined.groupby("EST_GROUP"):
             annual = (
                 grp[MONTHLY_COLS]
                 .sum(axis=1)
@@ -156,13 +156,13 @@ class DiversionComponent:
 
         wsd_wr = (joined
             .drop(columns=["geometry", "LAT_DD", "LONG_DD"], errors="ignore")
-            .groupby(["WS_ID", "Estuary", "YEAR"], as_index=False)
+            .groupby(["WS_ID", "EST_GROUP", "YEAR"], as_index=False)
             .sum(numeric_only=True)
         )
         #debug
         grain_check = (
             wsd_wr
-            .groupby(["WS_ID", "Estuary", "YEAR"])
+            .groupby(["WS_ID", "EST_GROUP", "YEAR"])
             .size()
             .reset_index(name="n")
             .query("n > 1")
@@ -176,7 +176,7 @@ class DiversionComponent:
 
         # reshape to long
         df_long = wsd_wr.melt(
-            id_vars=["WS_ID", "Estuary", "YEAR"],
+            id_vars=["WS_ID", "EST_GROUP", "YEAR"],
             value_vars=MONTHLY_COLS,
             var_name="month_name",
             value_name="diversion"
@@ -188,10 +188,10 @@ class DiversionComponent:
 
         monthly_long = (
             df_long[
-            ["YEAR", "month", "Estuary", "WS_ID", "diversion"]
+            ["YEAR", "month", "EST_GROUP", "WS_ID", "diversion"]
             ]
             .sort_values(
-                ["Estuary", "WS_ID", "YEAR", "month"]
+                ["EST_GROUP", "WS_ID", "YEAR", "month"]
             )
         )
 
@@ -261,7 +261,7 @@ class DiversionComponent:
 
         daily["id"] = daily["WS_ID"]
         daily["id_type"] = "watershed"
-        daily["estuary"] = daily["Estuary"]
+        daily["estuary"] = daily["EST_GROUP"]
 
         daily["component"] = self.name
         daily["source"] = "TCEQ"
