@@ -369,7 +369,7 @@ class ReturnFlowSource:
         watersheds = (
             self.ctx.registry
             .load_watersheds()
-            [["WS_ID", "Estuary", "geometry"]]
+            [["WS_ID", "EST_GROUP", "geometry"]]
         )
 
         watersheds = watersheds.to_crs(
@@ -409,7 +409,7 @@ class ReturnFlowSource:
             .groupby(
                 [
                     "WS_ID",
-                    "Estuary",
+                    "EST_GROUP",
                     "year",
                     "month",
                 ],
