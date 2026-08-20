@@ -41,10 +41,10 @@ class ReturnFlowSource:
     # Download DMR ZIP
     # --------------------------------------------------
     def _download_fy_zip(self, fy):
-        STATE = "TX"
-        fname = f"{STATE}_FY{fy}_NPDES_DMRS_LIMITS.zip"
+        
+        fname = f"{self.STATE}_FY{fy}_NPDES_DMRS_LIMITS.zip"
 
-        url = f"{BASE_URL}/{fname}"
+        url = f"{self.BASE_URL}/{fname}"
         print(url)
 
         r = requests.get(url, timeout=300, verify=certifi.where(),)
