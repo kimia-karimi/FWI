@@ -171,7 +171,7 @@ class DiversionComponent:
         print("\n[Diversion debug] duplicate rows after WS_ID/Estuary/YEAR aggregation")
         print("duplicate grain rows:", len(grain_check))
         print(grain_check.head(20))
-        debug = (joined[["WR_ID", "YEAR", "WS_ID", "Estuary", *MONTHLY_COLS, ]])
+        debug = (joined[["WR_ID", "YEAR", "WS_ID", "EST_GROUP", *MONTHLY_COLS, ]])
         debug.to_csv( "diversion_watershed_assignment.csv", index=False)
 
         # reshape to long
