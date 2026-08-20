@@ -225,22 +225,22 @@ class DiversionComponent:
             "DEC_DIV": "Dec",
         }
 
-        check_long = (check.melt(
-            id_vars=["WS_ID", "Estuary", "YEAR"],
-            value_vars=MONTHLY_COLS,
-            var_name="month_col",
-            value_name="diversion_acft"
-        )
+        #check_long = (check.melt(
+            #id_vars=["WS_ID", "Estuary", "YEAR"],
+            #value_vars=MONTHLY_COLS,
+           # var_name="month_col",
+            #value_name="diversion_acft"
+        #)
                      )
 
-        check_long["Month"] = check_long["month_col"].map(month_lookup)
+        #check_long["Month"] = check_long["month_col"].map(month_lookup)
 
-        check_long = check_long[
-        ["WS_ID", "Estuary", "YEAR", "Month", "diversion_acft"]]
+        #check_long = check_long[
+       # ["WS_ID", "Estuary", "YEAR", "Month", "diversion_acft"]]
 
-        print(check_long.to_string(index=False))
+        #print(check_long.to_string(index=False))
 
-        print("\nAnnual total:", check_long["diversion_acft"].sum()) 
+        #print("\nAnnual total:", check_long["diversion_acft"].sum()) 
 
         
 
