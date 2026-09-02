@@ -21,6 +21,7 @@ class TCEQWaterRightsSource:
         self.ctx = ctx
 
     def _fetch_features(self, url: str, where: str = "1=1", out_fields: str = "*", batch_size: int = 2000):
+        print (url)
         count = requests.get(
             url,
             verify=certifi.where(),
