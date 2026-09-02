@@ -246,8 +246,8 @@ class ReturnComponent:
         # permit, monitoring date, feature flow columns,
         # overall MGD, and overall acre-ft/month.
         # --------------------------------------------------
-        debug = self._build_feature_debug(feature_monthly)
-        self._write_debug_csv(debug)
+        #debug = self._build_feature_debug(feature_monthly)
+        #self._write_debug_csv(debug)
         
         # --------------------------------------------------
         # Load PERM_FEATURE_NMBRs
