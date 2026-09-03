@@ -73,8 +73,9 @@ class UpstreamGagedComponent:
     # BUILD DATAFRAME
     # ------------------------------------------------------------------
     def build(self, start, end) -> pd.DataFrame:
-
+        print(self.ctx.registry.upstream_json)
         upstream_cfg = self.ctx.registry.load_upstream_gages()
+        print(list(upstream_cfg.keys()))
 
         rows = []
 
