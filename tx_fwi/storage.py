@@ -45,17 +45,134 @@ class Storage:
 
     @property
     def master_path(self) -> Path:
-        return self.root / "fwi_timeseries.parquet"
+        return self.root / "data"/ "fwi_timeseries.parquet"
 
     @property
     def state_path(self) -> Path:
-        return self.root / "watermarks.json"
+        return self.root / "data"/ "watermarks.json"
+    @property
+    def incremental_dir(self) -> Path:
+        return self.root / "data" / "incremental"
 
+    def write_incremental(
+        self,
+        df: pd.DataFrame,
+    ) -> Path:
+
+        start = pd.to_datetime(
+            df["date"].min()
+        )
+
+        end = pd.to_datetime(
+            df["date"].max()
+        )
+
+        filename = (
+            f"FWI_"
+            f"{start:%Y%m%d}_"
+            f"{end:%Y%m%d}.parquet"
+        )
+
+        self.incremental_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        path = (
+            self.incremental_dir
+            / filename
+        )
+
+        df.to_parquet(
+            path,
+            index=False,
+        )
+
+        return path
+        
+    def write_manifest(
+        self,
+        df: pd.DataFrame,
+    ):
+
+        start = pd.to_datetime(
+            df["date"].min()
+        )
+
+        end = pd.to_datetime(
+            df["date"].max()
+        )
+
+        manifest = {
+            "run_date":
+                pd.Timestamp.utcnow()
+                .strftime("%Y-%m-%d"),
+
+            "run_start":
+                start.strftime("%Y-%m-%d"),
+
+            "run_end":
+                end.strftime("%Y-%m-%d"),
+
+            "rows":
+                len(df),
+
+            "components": {}
+        } 
+
+        for comp, grp in df.groupby("component"):
+
+            manifest["components"][comp] = {
+
+                "rows":
+                    len(grp),
+
+                "data_start":
+                    str(grp["date"].min().date()),
+
+                "data_end":
+                    str(grp["date"].max().date()),
+
+                "data_as_of":
+                    str(
+                        pd.to_datetime(
+                            grp["data_as_of"].max()
+                        ).date()
+                    ),
+            }
+
+        filename = (
+            f"FWI_"
+            f"{start:%Y%m%d}_"
+            f"{end:%Y%m%d}.json"
+        )
+
+        path = (
+            self.incremental_dir
+            / filename
+        )
+
+        path.write_text(
+            json.dumps(
+                manifest,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        return path
     def load_watermarks(self) -> dict:
         if self.state_path.exists():
             return json.loads(self.state_path.read_text(encoding="utf-8"))
         return {}
 
+    @property
+    def component_status_path(self) -> Path:
+        return (
+            self.root
+            / "metadata"
+            / "component_status.json"
+        )
     def save_watermarks(self, wm: dict) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         self.state_path.write_text(json.dumps(wm, indent=2), encoding="utf-8")
