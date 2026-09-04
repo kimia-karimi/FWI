@@ -134,6 +134,8 @@ class UngagedComponent:
             df["flow_role"] = "direct"
 
             df["count_in_basin_sum"] = 1
+            df["data_as_of"] = pd.Timestamp(end)
+
 
             df["note"] = None
 
