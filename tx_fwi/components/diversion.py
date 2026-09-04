@@ -270,6 +270,8 @@ class DiversionComponent:
         daily["value_afday"] = (daily["value"])
 
         daily["flow_role"] = "removal"
+        daily["data_as_of"] = pd.Timestamp(end)
+
 
         daily["count_in_basin_sum"] = 1
 
