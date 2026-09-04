@@ -225,7 +225,7 @@ class Storage:
         if df_new is None or df_new.empty:
             return 0
 
-        self.root.mkdir(parents=True, exist_ok=True)
+        self.master_path.parent.mkdir(parents=True, exist_ok=True)
         df_new = self.normalize(df_new)
 
         if self.master_path.exists():
