@@ -252,6 +252,7 @@ class EvapPrecipComponent:
         daily["source"] = "wdft"
 
         daily["flow_role"] = flow_role
+        daily["data_as_of"] = pd.Timestamp(end)
 
         daily["count_in_basin_sum"] = 1
 
