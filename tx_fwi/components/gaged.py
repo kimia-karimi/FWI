@@ -134,6 +134,7 @@ class LocalGagedComponent:
             else:
                 df["count_in_basin_sum"] = 1
             df["note"] = special if pd.notna(special) else None
+            df["data_as_of"] = pd.Timestamp(end)
 
             rows.append(df)
             print(df.head())
