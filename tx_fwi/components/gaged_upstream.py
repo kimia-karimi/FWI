@@ -130,6 +130,7 @@ class UpstreamGagedComponent:
                 df["source"] = str(source).lower()
                 df["flow_role"] = "system_counted"
                 df["count_in_basin_sum"] = 1
+                df["data_as_of"] = pd.Timestamp(end)
                 df["note"] = label if label else special
 
                 rows.append(df)
