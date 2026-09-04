@@ -490,7 +490,7 @@ class ReturnComponent:
         daily["flow_role"] = "return"
 
         daily["count_in_basin_sum"] = 1
-        df["data_as_of"] = pd.Timestamp(end)
+        daily["data_as_of"] = pd.Timestamp(end)
 
         daily["note"] = None
 
