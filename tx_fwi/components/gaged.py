@@ -160,7 +160,7 @@ class LocalGagedComponent:
 
         if df.empty:
             print("[Local] No rows written")
-            return 0
+            
 
         #n = self.ctx.storage.append(df)
 
