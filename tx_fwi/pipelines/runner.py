@@ -92,9 +92,11 @@ def run_all(start: str | None = None, end: str | None = None):
     print("\nRunning local gaged component...")
 
     comp_local = LocalGagedComponent(ctx)
-    n_local = comp_local.run(start=start_dt, end=end_dt)
 
-    print(f"Local gaged rows written: {n_local:,}")
+    df_local = comp_local.run(start=start_dt, end=end_dt)
+    
+
+    print(f"Local gaged rows written: {len(df_local):,}")
 
     # --------------------------------------------------------------
     # Component 2: Upstream gaged (system-level)
@@ -102,9 +104,10 @@ def run_all(start: str | None = None, end: str | None = None):
     print("\nRunning upstream gaged component...")
 
     comp_upstream = UpstreamGagedComponent(ctx)
-    n_upstream = comp_upstream.run(start=start_dt, end=end_dt)
-
-    print(f"Upstream gaged rows written: {n_upstream:,}")
+    
+    df_upstream = comp_upstream.run(start=start_dt, end=end_dt)
+    
+    print(f"Upstream gaged rows written: {len(df_upstream):,}")
     
     # --------------------------------------------------------------
     # Component 3: Ungaged flow 
@@ -112,8 +115,8 @@ def run_all(start: str | None = None, end: str | None = None):
     print("\nRunning ungaged flow component...")
 
     comp_ungaged = UngagedComponent(ctx)
-    n_ungaged = comp_ungaged.run(start=start_dt, end=end_dt)
-    print(f"Ungaged rows added: {n_ungaged:,}")
+    df_ungaged = comp_ungaged.run(start=start_dt, end=end_dt)
+    print(f"Ungaged rows added: {len(df_ungaged):,}")
     
     # --------------------------------------------------------------
     # Component 4: Diversion 
@@ -121,18 +124,73 @@ def run_all(start: str | None = None, end: str | None = None):
     print("\nRunning diversion component...")
 
     comp_diversion = DiversionComponent(ctx)
-    n_diversion = comp_diversion.run(start=start_dt, end=end_dt)
-
-    print(f"Diversion rows added: {n_diversion:,}")
+    df_diversion = comp_diversion.run(start=start_dt, end=end_dt)
+    
+    print(f"Diversion rows added: {len(df_diversion):,}")
     # --------------------------------------------------------------
     # Component 5: Return 
     # --------------------------------------------------------------
     print("\nRunning return component...")
 
     comp_return = ReturnComponent(ctx)
-    n_return = comp_return.run(start=start_dt, end=end_dt)
+    df_return = comp_return.run(start=start_dt, end=end_dt)
+
     
-    print(f"Return rows added: {n_return:,}")
+    
+    print(f"Return rows added: {len(df_return):,}")
+    dfs = []
+
+    for df in [
+        df_local,
+        df_upstream,
+        df_ungaged,
+        df_diversion,
+        df_return,
+    ]:
+        if df is not None and not df.empty:
+            dfs.append(df)
+    
+    if not dfs:
+        print("No component data generated.")
+        return
+    combined_df = pd.concat(
+        dfs,
+        ignore_index=True,
+    )
+
+    rows_written = ctx.storage.append(
+        combined_df,
+        run_start=start_dt,
+        run_end=end_dt
+    )
+
+    print(f"\nRows written: "f"{rows_written:,}")
+    if not df_local.empty:
+        ctx.storage.set_watermark(
+            "gaged",
+            df_local["date"].max()
+        )
+    if not df_upstream.empty:
+        ctx.storage.set_watermark(
+            "gaged_upstream",
+            df_upstream["date"].max()
+        )
+    if not df_ungaged.empty:
+        ctx.storage.set_watermark(
+            "ungaged",
+            df_ungaged["date"].max()
+        )
+    if not df_diversion.empty:
+        ctx.storage.set_watermark(
+            "diversion",
+            df_diversion["date"].max()
+        )
+    if not df_return.empty:
+        ctx.storage.set_watermark(
+            "return",
+            df_return["date"].max()
+        )
+
     print("\nPipeline complete.")
 
 
