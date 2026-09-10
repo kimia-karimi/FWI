@@ -162,8 +162,8 @@ class LocalGagedComponent:
             print("[Local] No rows written")
             return 0
 
-        n = self.ctx.storage.append(df)
+        #n = self.ctx.storage.append(df)
 
-        self.ctx.storage.set_watermark(self.name, df["date"].max())
+        #self.ctx.storage.set_watermark(self.name, df["date"].max())
 
-        return n
+        return df
