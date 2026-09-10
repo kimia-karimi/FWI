@@ -166,10 +166,10 @@ class UpstreamGagedComponent:
 
         if df.empty:
             print("[Upstream] No rows to write.")
-            return 0
+            
 
-        n = self.ctx.storage.append(df)
+        #n = self.ctx.storage.append(df)
 
-        self.ctx.storage.set_watermark(self.name, df["date"].max())
+        #self.ctx.storage.set_watermark(self.name, df["date"].max())
 
-        return n
+        return df
