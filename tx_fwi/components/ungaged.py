@@ -220,17 +220,17 @@ class UngagedComponent:
                 "No rows written."
             )
 
-            return 0
+            
 
-        n = self.ctx.storage.append(df)
+        #n = self.ctx.storage.append(df)
 
         #
         # Update watermark
         #
-        self.ctx.storage.set_watermark(
-            self.name,
-            df["date"].max(),
-        )
+        #self.ctx.storage.set_watermark(
+            #self.name,
+            #df["date"].max(),
+        #)
 
         print(
             f"[Ungaged] "
@@ -238,4 +238,4 @@ class UngagedComponent:
             f"{n:,} rows."
         )
 
-        return n
+        return df
