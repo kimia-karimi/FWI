@@ -57,6 +57,8 @@ class Storage:
     def write_incremental(
         self,
         df: pd.DataFrame,
+        run_start,
+        run_end
     ) -> Path:
 
         start = pd.to_datetime(
@@ -69,9 +71,10 @@ class Storage:
 
         filename = (
             f"FWI_"
-            f"{start:%Y%m%d}_"
-            f"{end:%Y%m%d}.parquet"
+            f"{run_start:%Y%m%d}_"
+            f"{run_end:%Y%m%d}.parquet"
         )
+
 
         self.incremental_dir.mkdir(
             parents=True,
@@ -216,7 +219,7 @@ class Storage:
 
         return out[REQUIRED_COLS]
 
-    def append(self, df_new: pd.DataFrame) -> int:
+    def append(self, df_new: pd.DataFrame, run_start, run_end) -> int:
         """
         Append new rows into one master parquet file.
 
@@ -227,6 +230,8 @@ class Storage:
 
         self.master_path.parent.mkdir(parents=True, exist_ok=True)
         df_new = self.normalize(df_new)
+        self.write_incremental(df_new)
+        self.write_manifest(df_new)
 
         if self.master_path.exists():
             df_old = pd.read_parquet(self.master_path)
