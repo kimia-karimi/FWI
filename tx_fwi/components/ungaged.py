@@ -222,7 +222,7 @@ class UngagedComponent:
 
             return 0
 
-        n = self.ctx.storage.append(df)
+        n = self.ctx.storage.append(df ,run_start=start, run_end= end)
 
         #
         # Update watermark
