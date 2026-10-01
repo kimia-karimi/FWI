@@ -293,7 +293,7 @@ class DiversionComponent:
             print("[Diversion] No rows written")
             return 0
 
-        n = self.ctx.storage.append(df)
+        n = self.ctx.storage.append(df, run_start=start, run_end= end)
 
         return n
 
