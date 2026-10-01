@@ -529,7 +529,7 @@ class ReturnComponent:
             print("[ReturnFlow] No rows written")
             return 0
 
-        n = self.ctx.storage.append(df)
+        n = self.ctx.storage.append(df ,run_start=start, run_end= end)
 
         self.ctx.storage.set_watermark(
             self.name,
