@@ -384,10 +384,10 @@ class ReturnComponent:
         watersheds = watersheds.to_crs(
             dmr_geo.crs
         )
-
+        #calculate only for ungaged watersheds.
         dmr_geo = gpd.sjoin(
             dmr_geo,
-            watersheds,
+            watersheds[watersheds["has_ungaged"] == 1],
             how="inner",
             predicate="intersects",
         )
