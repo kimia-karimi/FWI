@@ -124,8 +124,8 @@ class DiversionComponent:
             crs="EPSG:4269")
         )
         watersheds = watersheds.to_crs(gdf_points.crs)
-
-        joined = gpd.sjoin(gdf_points, watersheds, how="left", predicate="intersects")
+        #we only want diversions from ungaged watersheds. the diversion/return from gaged watersheds should already be reflected in their gaged record.
+        joined = gpd.sjoin(gdf_points, watersheds[watersheds["has_ungaged"] == 1], how="left", predicate="intersects")
         joined = joined.dropna(subset=["WS_ID"]).copy()
         for c in MONTHLY_COLS:
             joined[c] = pd.to_numeric(joined[c], errors="coerce").fillna(0.0)
