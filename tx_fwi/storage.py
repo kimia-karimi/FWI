@@ -230,7 +230,7 @@ class Storage:
 
         self.master_path.parent.mkdir(parents=True, exist_ok=True)
         df_new = self.normalize(df_new)
-        self.write_incremental(df_new)
+        self.write_incremental(df_new, run_start, run_end)
         self.write_manifest(df_new)
 
         if self.master_path.exists():
