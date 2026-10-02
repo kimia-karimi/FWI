@@ -143,6 +143,8 @@ class ReturnComponent:
         # Flow records only
         # --------------------------------------------------
         #print(dmr.columns)
+        dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
+        print("DMR for TX0000027 before dedup:", pd.DataFrame(dmr_st))
         dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
             dmr["MONITORING_PERIOD_END_DATE"],
             errors="coerce",
