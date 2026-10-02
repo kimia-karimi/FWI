@@ -280,8 +280,13 @@ class DiversionComponent:
         return daily[REQUIRED_OUT_COLS]
     def run(self, start=None, end=None):
         if start is None:
-            start = pd.Timestamp("2015-01-01")
+            wm = self.ctx.storage.get_watermark( self.name, default = "2015-01-01")
 
+            start = (
+                wm + pd.Timedelta(days=1)
+                if wm is not None
+                else pd.Timestamp("2015-01-01")
+            )
         if end is None:
             end = pd.Timestamp.utcnow().normalize()
 
