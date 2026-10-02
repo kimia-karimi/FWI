@@ -208,6 +208,8 @@ class ReturnComponent:
         dmr = dmr.drop_duplicates(
             subset=dedup_cols
         )
+        dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
+        print("DMR for TX0000027:", pd.DataFrame(dmr_st))
         print("DMR length after dedup:", len(dmr))
         # --------------------------------------------------
         # Monthly feature-level flow
