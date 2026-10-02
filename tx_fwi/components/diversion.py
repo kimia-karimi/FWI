@@ -116,7 +116,7 @@ class DiversionComponent:
         # Merge aggregated rights to one coordinate per WR_ID
         wr_coord = wr_merged.merge(points_one[["WR_ID", "LAT_DD", "LONG_DD"]], on="WR_ID", how="left")
         # spatial join to watershed registry
-        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "Estuary", "geometry"]])
+        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "Estuary", "HAS_UNGAGE", "geometry"]])
 
         gdf_points = gpd.GeoDataFrame(
             wr_coord,
