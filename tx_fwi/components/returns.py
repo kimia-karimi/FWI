@@ -234,8 +234,12 @@ class ReturnComponent:
             .agg(
                 FLOW_MGD=("FLOW_MGD", "sum"),
                 n_dmr_rows=("FLOW_MGD", "size"),
+                n_distinct_flow_values=("FLOW_MGD", "nunique"),
             )
         )
+        conflicts = feature_monthly[feature_monthly["n_distinct_flow_values"] > 1]
+        if not conflicts.empty:
+            raise ValueError("Multiple distinct monthly-average flow values remain for the same permit/outfall/month. Sample:\n"+ conflicts.head(20).to_string(index=False))
         #print("Feature monthly rows:", len(feature_monthly))
         #print(feature_monthly[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
         feature_monthly["days_in_month"] = (
