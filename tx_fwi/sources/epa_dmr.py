@@ -143,7 +143,7 @@ class ReturnFlowSource:
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
             & (dmr["PARAMETER_CODE"].astype(str).str.strip() == "50050")
-            & (dmr["STATISTICAL_BASE_TYPE_CODE"].astype(str) == "AVG") 
+            & (dmr["STATISTICAL_BASE_CODE"].astype(str) == "DB") 
         ].copy()
 
         #print("Flow rows after date and parameter filter:", len(dmr))
@@ -178,7 +178,7 @@ class ReturnFlowSource:
                 "PERMIT_NUM","PERM_FEATURE_NMBR",
             ]
         )
-        dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
+        dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS', 'STATISTICAL_BASE_CODE']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
         print("DMR for TX0000027:", pd.DataFrame(dmr_st))
         # --------------------------------------------------
         # Avoid inflating flow because one reported DMR value
@@ -188,6 +188,7 @@ class ReturnFlowSource:
             "EXTERNAL_PERMIT_NMBR",
             "PERMIT_NUM",
             "PERM_FEATURE_NMBR", #multiple feature/PERM_FEATURE_NMBR may be reported separately
+            "STATISTICAL_BASE_CODE",
             "MONITORING_PERIOD_END_DATE",
             "PARAMETER_CODE",
             "DMR_VALUE_ID",
