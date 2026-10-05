@@ -154,6 +154,7 @@ class ReturnComponent:
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
             & (dmr["PARAMETER_CODE"].astype(str).str.strip() == "50050")
+            & (dmr["STATISTICAL_BASE_TYPE_CODE"].astype(str) == "AVG") 
         ].copy()
 
         #print("Flow rows after date and parameter filter:", len(dmr))
