@@ -154,7 +154,7 @@ class ReturnComponent:
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
             & (dmr["PARAMETER_CODE"].astype(str).str.strip() == "50050")
-            & (dmr["STATISTICAL_BASE_TYPE_CODE"].astype(str) == "AVG") 
+            & (dmr["STATISTICAL_BASE_CODE"].astype(str) == "DB") #daily average code
         ].copy()
 
         #print("Flow rows after date and parameter filter:", len(dmr))
@@ -197,6 +197,7 @@ class ReturnComponent:
             "EXTERNAL_PERMIT_NMBR",
             "PERMIT_NUM",
             "PERM_FEATURE_NMBR", #multiple feature/PERM_FEATURE_NMBR may be reported separately
+            "STATISTICAL_BASE_CODE",
             "MONITORING_PERIOD_END_DATE",
             "PARAMETER_CODE",
             "DMR_VALUE_ID",
@@ -227,6 +228,7 @@ class ReturnComponent:
                     "EXTERNAL_PERMIT_NMBR",
                     "PERMIT_NUM",
                     "PERM_FEATURE_NMBR",
+                    "STATISTICAL_BASE_CODE",
                     "MONITORING_PERIOD_END_DATE",
                 ],
                 as_index=False,
@@ -239,7 +241,7 @@ class ReturnComponent:
         )
         conflicts = feature_monthly[feature_monthly["n_distinct_flow_values"] > 1]
         if not conflicts.empty:
-            raise ValueError("Multiple distinct monthly-average flow values remain for the same permit/outfall/month. Sample:\n"+ conflicts.head(20).to_string(index=False))
+            raise ValueError("Multiple distinct monthly-average flow values remain for the same permit/outfall/month. Sample:\n"+ conflicts.head(60).to_string(index=False))
         #print("Feature monthly rows:", len(feature_monthly))
         #print(feature_monthly[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
         feature_monthly["days_in_month"] = (
@@ -331,6 +333,7 @@ class ReturnComponent:
                 "PERMIT_NUM",
                 "PERM_FEATURE_NMBR",
                 "MONITORING_PERIOD_END_DATE",
+                "STATISTICAL_BASE_CODE",
                 "FLOW_MGD",
                 "FLOW_ACFT_MONTH",
                 "_merge",
@@ -350,6 +353,7 @@ class ReturnComponent:
                     "PERMIT_NUM",
                     "PERM_FEATURE_NMBR",
                     "MONITORING_PERIOD_END_DATE",
+                    "STATISTICAL_BASE_CODE" ,
                     "FLOW_MGD",
                     "FLOW_ACFT_MONTH",
                 ]
