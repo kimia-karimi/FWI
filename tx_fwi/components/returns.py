@@ -54,7 +54,7 @@ class ReturnComponent:
             .astype(str)
             .str.strip()
             .str.replace(r"\.0$", "", regex=True)
-            .str.replace(r"\D+", "", regex=True)
+           # .str.replace(r"\D+", "", regex=True)
             .str.lstrip("0")
             .replace("", pd.NA)
         )
