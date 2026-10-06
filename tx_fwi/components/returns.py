@@ -126,7 +126,7 @@ class ReturnComponent:
         dmr: pd.DataFrame,
         *,
         raise_on_conflicting_ties: bool = True,
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+   ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         Select one representative flow value per permit/feature/period.
 
