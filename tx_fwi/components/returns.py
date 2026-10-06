@@ -190,9 +190,9 @@ class ReturnComponent:
             "VALUE_TYPE_CODE",
             "PARAMETER_CODE",
         ]
-        for col in code_cols:
-            if col in work.columns:
-                work[col] = self._normalize_code(work[col])
+        #for col in code_cols:
+           # if col in work.columns:
+                #work[col] = self._normalize_code(work[col])
 
         work = work.dropna(subset=group_cols + ["FLOW_MGD"]).copy()
         if work.empty:
