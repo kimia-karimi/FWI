@@ -121,7 +121,338 @@ class ReturnComponent:
             
 
         return debug
-   
+   def _select_return_flow_candidates(
+        self,
+        dmr: pd.DataFrame,
+        *,
+        raise_on_conflicting_ties: bool = True,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Select one representative flow value per permit/feature/period.
+
+        Substantive priority:
+        1. AVG statistical-base type.
+        2. Monitoring location: 1, EG, Y, EA, ED, E1, E2, E3, then other.
+        3. Statistical base: DB, MB, AB, QB, then other.
+        4. Exact or unqualified values.
+        5. Rows without a NODI code.
+
+        Tie breakers:
+        1. Most recent VALUE_RECEIVED_DATE.
+        2. Highest available DMR/source identifier.
+
+        Equal-priority candidates with different flow values raise an error by
+        default. They are never summed automatically.
+        """
+        if dmr.empty:
+            return dmr.copy(), dmr.copy()
+
+        work = dmr.copy().reset_index(drop=True)
+        work["_candidate_id"] = range(len(work))
+
+        group_cols = [
+            "EXTERNAL_PERMIT_NMBR",
+            "PERMIT_NUM",
+            "PERM_FEATURE_NMBR",
+            "MONITORING_PERIOD_END_DATE",
+        ]
+
+        required_cols = group_cols + [
+            "DMR_VALUE_STANDARD_UNITS",
+            "MONITORING_LOCATION_CODE",
+            "STATISTICAL_BASE_CODE",
+            "STATISTICAL_BASE_TYPE_CODE",
+        ]
+        missing_cols = [col for col in required_cols if col not in work.columns]
+        if missing_cols:
+            raise KeyError(
+                "Cannot select representative DMR flow records. Missing columns: "
+                + ", ".join(missing_cols)
+            )
+
+        work["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
+            work["MONITORING_PERIOD_END_DATE"],
+            errors="coerce",
+        )
+        work["FLOW_MGD"] = pd.to_numeric(
+            work["DMR_VALUE_STANDARD_UNITS"],
+            errors="coerce",
+        )
+
+        code_cols = [
+            "EXTERNAL_PERMIT_NMBR",
+            "MONITORING_LOCATION_CODE",
+            "STATISTICAL_BASE_CODE",
+            "STATISTICAL_BASE_TYPE_CODE",
+            "DMR_VALUE_QUALIFIER_CODE",
+            "LIMIT_VALUE_QUALIFIER_CODE",
+            "NODI_CODE",
+            "VALUE_TYPE_CODE",
+            "PARAMETER_CODE",
+        ]
+        for col in code_cols:
+            if col in work.columns:
+                work[col] = self._normalize_code(work[col])
+
+        work = work.dropna(subset=group_cols + ["FLOW_MGD"]).copy()
+        if work.empty:
+            return work.copy(), work.copy()
+
+        negative = work["FLOW_MGD"] < 0
+        if negative.any():
+            sample = work.loc[
+                negative,
+                group_cols + ["FLOW_MGD"],
+            ].head(20)
+            raise ValueError(
+                "Negative EPA DMR flow values require review:\n"
+                + sample.to_string(index=False)
+            )
+
+        base_type_priority = {"AVG": 0}
+        work["_base_type_rank"] = (
+            work["STATISTICAL_BASE_TYPE_CODE"]
+            .map(base_type_priority)
+            .fillna(90)
+            .astype(int)
+        )
+
+        location_priority = {
+            "1": 0,
+            "EG": 1,
+            "Y": 2,
+            "EA": 3,
+            "ED": 4,
+            "E1": 5,
+            "E2": 6,
+            "E3": 7,
+        }
+        work["_location_rank"] = (
+            work["MONITORING_LOCATION_CODE"]
+            .map(location_priority)
+            .fillna(90)
+            .astype(int)
+        )
+
+        stat_base_priority = {
+            "DB": 0,
+            "MB": 1,
+            "AB": 2,
+            "QB": 3,
+        }
+        work["_stat_base_rank"] = (
+            work["STATISTICAL_BASE_CODE"]
+            .map(stat_base_priority)
+            .fillna(90)
+            .astype(int)
+        )
+
+        if "DMR_VALUE_QUALIFIER_CODE" in work.columns:
+            qualifier = work["DMR_VALUE_QUALIFIER_CODE"]
+            work["_qualifier_rank"] = 10
+            work.loc[qualifier.isna() | qualifier.eq("="), "_qualifier_rank"] = 0
+        else:
+            work["_qualifier_rank"] = 0
+
+        if "NODI_CODE" in work.columns:
+            work["_nodi_rank"] = work["NODI_CODE"].notna().astype(int)
+        else:
+            work["_nodi_rank"] = 0
+
+        if "VALUE_RECEIVED_DATE" in work.columns:
+            work["_received_date"] = pd.to_datetime(
+                work["VALUE_RECEIVED_DATE"],
+                errors="coerce",
+            )
+        else:
+            work["_received_date"] = pd.NaT
+
+        work["selection_basis"] = (
+            "location="
+            + work["MONITORING_LOCATION_CODE"].fillna("missing")
+            + ";stat_base="
+            + work["STATISTICAL_BASE_CODE"].fillna("missing")
+            + ";stat_type="
+            + work["STATISTICAL_BASE_TYPE_CODE"].fillna("missing")
+        )
+
+        work["selection_tier"] = (
+            work["_base_type_rank"].astype(str)
+            + "-"
+            + work["_location_rank"].astype(str)
+            + "-"
+            + work["_stat_base_rank"].astype(str)
+        )
+
+        exact_candidate_cols = group_cols + [
+            "PARAMETER_CODE",
+            "MONITORING_LOCATION_CODE",
+            "STATISTICAL_BASE_CODE",
+            "STATISTICAL_BASE_TYPE_CODE",
+            "FLOW_MGD",
+        ]
+        exact_candidate_cols = [
+            col for col in exact_candidate_cols if col in work.columns
+        ]
+
+        work["_candidate_copy_count"] = (
+            work
+            .groupby(exact_candidate_cols, dropna=False)["FLOW_MGD"]
+            .transform("size")
+        )
+        work = work.drop_duplicates(
+            subset=exact_candidate_cols,
+            keep="first",
+        ).copy()
+
+        substantive_rank_cols = [
+            "_base_type_rank",
+            "_location_rank",
+            "_stat_base_rank",
+            "_qualifier_rank",
+            "_nodi_rank",
+        ]
+
+        # Rank candidates lexicographically, not independently by each minimum.
+        work["_priority_tuple"] = list(
+            zip(*(work[col] for col in substantive_rank_cols))
+        )
+        work["_best_priority_tuple"] = (
+            work
+            .groupby(group_cols, dropna=False)["_priority_tuple"]
+            .transform("min")
+        )
+        work["_is_top_priority_candidate"] = work["_priority_tuple"].eq(
+            work["_best_priority_tuple"]
+        )
+
+        top_candidates = work[work["_is_top_priority_candidate"]].copy()
+        top_summary = (
+            top_candidates
+            .groupby(group_cols, dropna=False, as_index=False)
+            .agg(
+                n_top_candidates=("FLOW_MGD", "size"),
+                n_top_flow_values=("FLOW_MGD", "nunique"),
+                min_top_flow_mgd=("FLOW_MGD", "min"),
+                max_top_flow_mgd=("FLOW_MGD", "max"),
+            )
+        )
+
+        conflicting_groups = top_summary[
+            top_summary["n_top_flow_values"] > 1
+        ].copy()
+        if not conflicting_groups.empty:
+            conflict_rows = top_candidates.merge(
+                conflicting_groups[group_cols],
+                on=group_cols,
+                how="inner",
+            )
+            display_cols = group_cols + [
+                "MONITORING_LOCATION_CODE",
+                "STATISTICAL_BASE_CODE",
+                "STATISTICAL_BASE_TYPE_CODE",
+                "FLOW_MGD",
+                "DMR_VALUE_QUALIFIER_CODE",
+                "VALUE_RECEIVED_DATE",
+                "DMR_VALUE_ID",
+                "selection_basis",
+            ]
+            display_cols = [
+                col for col in display_cols if col in conflict_rows.columns
+            ]
+            message = (
+                "Conflicting top-ranked EPA DMR return-flow candidates were "
+                "found. Equal-priority records have different flow values and "
+                "were not summed:\n"
+                + conflict_rows[display_cols].head(50).to_string(index=False)
+            )
+            if raise_on_conflicting_ties:
+                raise ValueError(message)
+            print("[ReturnFlow] WARNING: " + message)
+
+        sort_cols = group_cols + substantive_rank_cols + ["_received_date"]
+        ascending = [True] * len(group_cols) + [True] * len(
+            substantive_rank_cols
+        ) + [False]
+
+        for optional_id in [
+            "DMR_VALUE_ID",
+            "DMR_FORM_VALUE_ID",
+            "DMR_EVENT_ID",
+            "LIMIT_VALUE_ID",
+            "LIMIT_ID",
+        ]:
+            if optional_id in work.columns:
+                sort_col = f"_sort_{optional_id}"
+                work[sort_col] = pd.to_numeric(
+                    work[optional_id],
+                    errors="coerce",
+                )
+                sort_cols.append(sort_col)
+                ascending.append(False)
+
+        work = work.sort_values(
+            sort_cols,
+            ascending=ascending,
+            na_position="last",
+            kind="stable",
+        ).copy()
+
+        selected = work.drop_duplicates(
+            subset=group_cols,
+            keep="first",
+        ).copy()
+        selected = selected.merge(
+            top_summary,
+            on=group_cols,
+            how="left",
+            validate="one_to_one",
+        )
+
+        selected["selection_status"] = "selected_unique"
+        selected.loc[
+            (selected["n_top_candidates"] > 1)
+            & (selected["n_top_flow_values"] == 1),
+            "selection_status",
+        ] = "selected_from_equal_value_tie"
+        selected.loc[
+            selected["n_top_flow_values"] > 1,
+            "selection_status",
+        ] = "selected_from_conflicting_tie"
+
+        selected_counts = selected.groupby(
+            group_cols,
+            dropna=False,
+        ).size()
+        if (selected_counts != 1).any():
+            raise AssertionError(
+                "Candidate selection did not produce exactly one row per "
+                "permit/feature/monitoring period."
+            )
+
+        selected_candidate_ids = set(selected["_candidate_id"])
+        audit = work.copy()
+        audit["selection_result"] = "not_selected"
+        audit.loc[
+            audit["_candidate_id"].isin(selected_candidate_ids),
+            "selection_result",
+        ] = "selected"
+        audit.loc[
+            audit["_is_top_priority_candidate"]
+            & ~audit["_candidate_id"].isin(selected_candidate_ids),
+            "selection_result",
+        ] = "top_priority_tie_not_selected"
+
+        cleanup_cols = [
+            col
+            for col in selected.columns
+            if col.startswith("_best_")
+            or col.startswith("_sort_")
+            or col == "_priority_tuple"
+        ]
+        selected = selected.drop(columns=cleanup_cols, errors="ignore")
+
+        return selected, audit
     # --------------------------------------------------
     # Main build
     # --------------------------------------------------
@@ -134,7 +465,7 @@ class ReturnComponent:
 
         dmr = source._load_dmr(start_fy, end_fy)
 
-        print("Loaded DMR rows:", len(dmr))
+        #print("Loaded DMR rows:", len(dmr))
 
         if dmr.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
@@ -143,8 +474,8 @@ class ReturnComponent:
         # Flow records only
         # --------------------------------------------------
         #print(dmr.columns)
-        dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True).head(10)
-        print("DMR for TX0000027 before dedup:", pd.DataFrame(dmr_st))
+        #dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True).head(10)
+        #print("DMR for TX0000027 before dedup:", pd.DataFrame(dmr_st))
         dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
             dmr["MONITORING_PERIOD_END_DATE"],
             errors="coerce",
@@ -154,7 +485,7 @@ class ReturnComponent:
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
             & (dmr["PARAMETER_CODE"].astype(str).str.strip() == "50050")
-            & (dmr["STATISTICAL_BASE_CODE"].astype(str) == "DB") #daily average code
+            #& (dmr["STATISTICAL_BASE_CODE"].astype(str) == "DB") #daily average code
         ].copy()
 
         #print("Flow rows after date and parameter filter:", len(dmr))
@@ -189,11 +520,35 @@ class ReturnComponent:
                 "PERMIT_NUM","PERM_FEATURE_NMBR",
             ]
         )
+        selected_dmr, selection_audit = self._select_return_flow_candidates(
+            dmr,
+            raise_on_conflicting_ties=True,
+        )
+
+        if selected_dmr.empty:
+            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
+
+        print("[ReturnFlow] Candidate rows:", len(dmr))
+        print(
+            "[ReturnFlow] Selected permit-feature-period rows:",
+            len(selected_dmr),
+        )
+        print("[ReturnFlow] Selected bases:")
+        print(
+            selected_dmr["selection_basis"]
+            .value_counts(dropna=False)
+            .to_string()
+        )
+
+        selection_audit.to_csv(
+            "return_dmr_selection_audit.csv",
+            index=False,
+        )
         # --------------------------------------------------
         # Avoid inflating flow because one reported DMR value
         # can appear more than once due to limit rows.
         # --------------------------------------------------
-        dedup_cols = [
+        feature_cols = [
             "EXTERNAL_PERMIT_NMBR",
             "PERMIT_NUM",
             "PERM_FEATURE_NMBR", #multiple feature/PERM_FEATURE_NMBR may be reported separately
@@ -202,46 +557,40 @@ class ReturnComponent:
             "PARAMETER_CODE",
             "DMR_VALUE_ID",
             "FLOW_MGD",
+            "MONITORING_LOCATION_CODE",
+            "STATISTICAL_BASE_TYPE_CODE",
+            "selection_basis",
+            "selection_status",
         ]
 
-        dedup_cols = [
-            c for c in dedup_cols
-            if c in dmr.columns
-        ]
+        feature_monthly = selected_dmr[feature_cols].copy()
 
-        dmr = dmr.drop_duplicates(
-            subset=dedup_cols
+        duplicate_selected = feature_monthly.duplicated(
+            subset=[
+                "EXTERNAL_PERMIT_NMBR",
+                "PERMIT_NUM",
+                "PERM_FEATURE_NMBR",
+                "MONITORING_PERIOD_END_DATE",
+            ],
+            keep=False,
         )
-        dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
-        print("DMR for TX0000027:", pd.DataFrame(dmr_st))
-        print("DMR length after dedup:", len(dmr))
+        if duplicate_selected.any():
+            raise AssertionError(
+                "Selected DMR data contains duplicate permit/feature/period rows:\n"
+                + feature_monthly.loc[duplicate_selected]
+                .head(50)
+                .to_string(index=False)
+            )
+        #dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
+        #print("DMR for TX0000027:", pd.DataFrame(dmr_st))
+        #print("DMR length after dedup:", len(dmr))
         # --------------------------------------------------
         # Monthly feature-level flow
         #
         #
         # keep each permit PERM_FEATURE_NMBR separate before spatial join.
         # --------------------------------------------------
-        feature_monthly = (
-            dmr
-            .groupby(
-                [
-                    "EXTERNAL_PERMIT_NMBR",
-                    "PERMIT_NUM",
-                    "PERM_FEATURE_NMBR",
-                    "STATISTICAL_BASE_CODE",
-                    "MONITORING_PERIOD_END_DATE",
-                ],
-                as_index=False,
-            )
-            .agg(
-                FLOW_MGD=("FLOW_MGD", "sum"),
-                n_dmr_rows=("FLOW_MGD", "size"),
-                n_distinct_flow_values=("FLOW_MGD", "nunique"),
-            )
-        )
-        conflicts = feature_monthly[feature_monthly["n_distinct_flow_values"] > 1]
-        if not conflicts.empty:
-            raise ValueError("Multiple distinct monthly-average flow values remain for the same permit/outfall/month. Sample:\n"+ conflicts.head(60).to_string(index=False))
+        
         #print("Feature monthly rows:", len(feature_monthly))
         #print(feature_monthly[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
         feature_monthly["days_in_month"] = (
@@ -250,7 +599,53 @@ class ReturnComponent:
         )
 
         feature_monthly["FLOW_ACFT_MONTH"] = mgd_to_afday(feature_monthly["FLOW_MGD"])*feature_monthly["days_in_month"]
-        
+        # Load and normalize TCEQ outfall geometry.
+        perm_feature_nmbrs = self.return_source.load_perm_feature_nmbrs()
+        perm_feature_nmbrs["PERMIT_NUM"] = self._normalize_npdes(
+            perm_feature_nmbrs["NPDES_NUM"]
+        )
+        perm_feature_nmbrs["PERM_FEATURE_NMBR"] = self._normalize_outfall(
+            perm_feature_nmbrs["OUTFALL"]
+        )
+
+        print(
+            "[ReturnFlow] PERM_FEATURE_NMBRs rows before dropna:",
+            len(perm_feature_nmbrs),
+        )
+        perm_feature_nmbrs = perm_feature_nmbrs.dropna(
+            subset=["PERMIT_NUM", "PERM_FEATURE_NMBR", "geometry"]
+        )
+        print(
+            "[ReturnFlow] PERM_FEATURE_NMBRs rows after dropna:",
+            len(perm_feature_nmbrs),
+        )
+
+        duplicated_geometry_keys = perm_feature_nmbrs.duplicated(
+            subset=["PERMIT_NUM", "PERM_FEATURE_NMBR"],
+            keep=False,
+        )
+        if duplicated_geometry_keys.any():
+            geometry_conflicts = (
+                perm_feature_nmbrs.loc[duplicated_geometry_keys]
+                .groupby(["PERMIT_NUM", "PERM_FEATURE_NMBR"])
+                .size()
+            )
+            print(
+                "[ReturnFlow] Duplicate TCEQ permit-feature geometry keys "
+                f"found for {len(geometry_conflicts)} keys; keeping one geometry "
+                "per key."
+            )
+
+        perm_feature_nmbrs_feature = (
+            perm_feature_nmbrs
+            .drop_duplicates(
+                subset=["PERMIT_NUM", "PERM_FEATURE_NMBR"],
+                keep="first",
+            )[
+                ["PERMIT_NUM", "PERM_FEATURE_NMBR", "geometry"]
+            ]
+        )
+
         
         
         # --------------------------------------------------
@@ -265,30 +660,30 @@ class ReturnComponent:
         # Load PERM_FEATURE_NMBRs
         # --------------------------------------------------
         
-        resp = requests.get(
-            self.return_source.PERM_FEATURE_NMBR_URL,timeout=120,verify=certifi.where(),)
+        #resp = requests.get(
+            #self.return_source.PERM_FEATURE_NMBR_URL,timeout=120,verify=certifi.where(),)
 
-        resp.raise_for_status()
+        #resp.raise_for_status()
 
-        geojson = resp.json()
+        #geojson = resp.json()
         
 
-        PERM_FEATURE_NMBRs = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
+        #PERM_FEATURE_NMBRs = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
         #print("PERM_FEATURE_NMBRs rows:", len(PERM_FEATURE_NMBRs))
         #print(PERM_FEATURE_NMBRs.columns.tolist())
-        PERM_FEATURE_NMBRs["PERMIT_NUM"] = self._normalize_npdes(
-            PERM_FEATURE_NMBRs["NPDES_NUM"]
-        )
-        PERM_FEATURE_NMBRs["PERM_FEATURE_NMBR"] = self._normalize_outfall(PERM_FEATURE_NMBRs["OUTFALL"])
-        print("PERM_FEATURE_NMBRs rows before dropna:", len(PERM_FEATURE_NMBRs))
-        PERM_FEATURE_NMBRs = PERM_FEATURE_NMBRs.dropna(
-            subset=[
-                "PERMIT_NUM",
-                "PERM_FEATURE_NMBR",
-                "geometry",
-            ]
-        )
-        print("PERM_FEATURE_NMBRs rows after dropna:", len(PERM_FEATURE_NMBRs))
+       # PERM_FEATURE_NMBRs["PERMIT_NUM"] = self._normalize_npdes(
+            #PERM_FEATURE_NMBRs["NPDES_NUM"]
+        #)
+        #PERM_FEATURE_NMBRs["PERM_FEATURE_NMBR"] = self._normalize_outfall(PERM_FEATURE_NMBRs["OUTFALL"])
+        #print("PERM_FEATURE_NMBRs rows before dropna:", len(PERM_FEATURE_NMBRs))
+        #PERM_FEATURE_NMBRs = PERM_FEATURE_NMBRs.dropna(
+            #subset=[
+                #"PERMIT_NUM",
+               # "PERM_FEATURE_NMBR",
+               # "geometry",
+            #]
+        #)
+        #print("PERM_FEATURE_NMBRs rows after dropna:", len(PERM_FEATURE_NMBRs))
         #print(PERM_FEATURE_NMBRs.columns.tolist())
         #print(PERM_FEATURE_NMBRs[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
         # --------------------------------------------------
@@ -297,22 +692,22 @@ class ReturnComponent:
         # This prevents the old issue:
         # joining permit total to all PERM_FEATURE_NMBRs and multiplying flow.
         # --------------------------------------------------
-        PERM_FEATURE_NMBRs_feature = (
-            PERM_FEATURE_NMBRs
-            .drop_duplicates(
-                subset=[
-                    "PERMIT_NUM",
-                    "PERM_FEATURE_NMBR",
-                ]
-            )
-            [
-                [
-                    "PERMIT_NUM",
-                    "PERM_FEATURE_NMBR",
-                    "geometry",
-                ]
-            ]
-        )
+        #PERM_FEATURE_NMBRs_feature = (
+            #PERM_FEATURE_NMBRs
+            #.drop_duplicates(
+               # subset=[
+                   # "PERMIT_NUM",
+                   # "PERM_FEATURE_NMBR",
+               # ]
+            #)
+            #[
+               # [
+                   # "PERMIT_NUM",
+                    #"PERM_FEATURE_NMBR",
+                   # "geometry",
+                #]
+           # ]
+      #  )
  
 
         # --------------------------------------------------
@@ -322,18 +717,22 @@ class ReturnComponent:
             PERM_FEATURE_NMBRs_feature,
             on=["PERMIT_NUM","PERM_FEATURE_NMBR"],
             how="left",
-            indicator= True
+            indicator= True,
+            validate="many_to_one"
         )
         
         # Optional join-quality debug
 
-        dmr_geo[
+        join_debug_cols[
             [
                 "EXTERNAL_PERMIT_NMBR",
                 "PERMIT_NUM",
                 "PERM_FEATURE_NMBR",
                 "MONITORING_PERIOD_END_DATE",
                 "STATISTICAL_BASE_CODE",
+                "MONITORING_LOCATION_CODE",
+                "STATISTICAL_BASE_TYPE_CODE",
+                "selection_basis",
                 "FLOW_MGD",
                 "FLOW_ACFT_MONTH",
                 "_merge",
@@ -348,15 +747,7 @@ class ReturnComponent:
 
         if not missing_geo.empty:
             missing_geo[
-                [
-                    "EXTERNAL_PERMIT_NMBR",
-                    "PERMIT_NUM",
-                    "PERM_FEATURE_NMBR",
-                    "MONITORING_PERIOD_END_DATE",
-                    "STATISTICAL_BASE_CODE" ,
-                    "FLOW_MGD",
-                    "FLOW_ACFT_MONTH",
-                ]
+                join_debug_cols[:-1]
             ].to_csv(
                 "return_dmr_missing_PERM_FEATURE_NMBR_geometry.csv",
                 index=False,
@@ -371,9 +762,7 @@ class ReturnComponent:
         dmr_geo = dmr_geo[
             dmr_geo["_merge"] == "both"
         ].drop(columns=["_merge"])
-
-        dmr_geo = dmr_geo.dropna(
-            subset=["geometry"]
+        .dropna(subset=["geometry"]
         )
 
         if dmr_geo.empty:
