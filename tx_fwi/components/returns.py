@@ -761,8 +761,7 @@ class ReturnComponent:
 
         dmr_geo = dmr_geo[
             dmr_geo["_merge"] == "both"
-        ].drop(columns=["_merge"])
-        .dropna(subset=["geometry"]
+        ].drop(columns=["_merge"]).dropna(subset=["geometry"]
         )
 
         if dmr_geo.empty:
