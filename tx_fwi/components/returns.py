@@ -121,12 +121,12 @@ class ReturnComponent:
             
 
         return debug
-   def _select_return_flow_candidates(
+    def _select_return_flow_candidates(
         self,
         dmr: pd.DataFrame,
         *,
         raise_on_conflicting_ties: bool = True,
-   ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         Select one representative flow value per permit/feature/period.
 
