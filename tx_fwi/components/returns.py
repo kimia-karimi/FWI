@@ -23,6 +23,105 @@ REQUIRED_OUT_COLS = [
     "data_as_of",
     "note",
 ]
+# Debug exports are useful while the ranking is being validated statewide.
+WRITE_DEBUG_FILES = True
+
+# Monitoring locations are ranked only after a record is classified as a
+# representative average. Primary gross effluent is preferred, but a primary
+# MAX/MIN record cannot beat a supplementary AVG record.
+MONITORING_LOCATION_PRIORITY = {
+    "1": 0,    # Effluent Gross
+    "EG": 1,   # Effluent Gross
+    "Y": 2,    # Effluent Gross (Supplementary)
+    "EA": 3,   # Effluent Adjusted Value
+    "ED": 4,   # Effluent with additives
+    "E1": 5,   # Effluent Option 1
+    "E2": 6,   # Effluent Option 2
+    "E3": 7,   # Effluent Option 3
+}
+
+# Expanded EPA statistical-base mapping used by the selector. The mapping is
+# intentionally limited to values that can reasonably represent a central or
+# reported discharge rate. Maximum, minimum, total, loading, percentile, and
+# excursion statistics are not representative average-flow candidates.
+#
+# rank: lower is preferred within the same monitoring-location priority.
+# monthly_compatible: True when EPA marks the statistic as acceptable for a
+# monthly-average context or the time basis directly represents about a month.
+STATISTICAL_BASE_MAP = {
+    # Direct monthly / approximately monthly arithmetic averages
+    "MK": {"rank": 0, "description": "Monthly Average", "monthly_compatible": True},
+    "3C": {"rank": 1, "description": "30 Day Average", "monthly_compatible": True},
+    "DB": {"rank": 2, "description": "Daily Average", "monthly_compatible": True},
+    "1H": {"rank": 3, "description": "1 Day Average", "monthly_compatible": False},
+    "DG": {"rank": 4, "description": "Discharge Per Day Average", "monthly_compatible": False},
+    "AF": {"rank": 5, "description": "Average", "monthly_compatible": False},
+    "AH": {"rank": 6, "description": "Average Value", "monthly_compatible": False},
+    "AE": {"rank": 7, "description": "Arithmetic Mean", "monthly_compatible": False},
+    "MC": {"rank": 8, "description": "Mean", "monthly_compatible": False},
+    "RB": {"rank": 9, "description": "Reported Average", "monthly_compatible": False},
+    "NA": {"rank": 10, "description": "Non-Specific Average", "monthly_compatible": False},
+    "A1": {"rank": 11, "description": "Average (Data Migration)", "monthly_compatible": False},
+
+    # Monthly/30-day geometric or arithmetic alternatives
+    "3B": {"rank": 15, "description": "30 Day Arithmetic", "monthly_compatible": True},
+    "3F": {"rank": 16, "description": "30 Day Arithmetic Mean", "monthly_compatible": True},
+    "3A": {"rank": 17, "description": "30 Day Geometric Mean", "monthly_compatible": True},
+    "3D": {"rank": 18, "description": "30 Day Geometric", "monthly_compatible": True},
+    "3H": {"rank": 19, "description": "30 Day Average Geometric", "monthly_compatible": True},
+    "ML": {"rank": 20, "description": "Monthly Geometric", "monthly_compatible": True},
+    "MM": {"rank": 21, "description": "Monthly Geometric Mean", "monthly_compatible": True},
+    "M4": {"rank": 22, "description": "Monthly Average Geometric", "monthly_compatible": True},
+    "LB": {"rank": 23, "description": "Logarithmic Monthly Median", "monthly_compatible": False},
+    "M3": {"rank": 24, "description": "Monthly Median", "monthly_compatible": False},
+
+    # Short-term averages, fallback when no monthly/daily representative exists
+    "DP": {"rank": 30, "description": "14 Day Average", "monthly_compatible": False},
+    "7A": {"rank": 31, "description": "7 Day Average", "monthly_compatible": False},
+    "WA": {"rank": 32, "description": "Weekly Average", "monthly_compatible": False},
+    "HB": {"rank": 33, "description": "High Weekly Average", "monthly_compatible": False},
+    "HA": {"rank": 34, "description": "High 7 Day Average", "monthly_compatible": False},
+    "4A": {"rank": 35, "description": "4 Day Average", "monthly_compatible": False},
+    "5B": {"rank": 36, "description": "5 Day Average", "monthly_compatible": False},
+    "1C": {"rank": 37, "description": "12 Day Average", "monthly_compatible": False},
+    "9B": {"rank": 38, "description": "90 Day Average", "monthly_compatible": False},
+    "1F": {"rank": 39, "description": "120 Day Average", "monthly_compatible": False},
+
+    # Longer-term averages, retained so missing preferred records do not become 0
+    "QA": {"rank": 50, "description": "Quarterly Average", "monthly_compatible": False},
+    "QR": {"rank": 51, "description": "Quarterly Rolling Average", "monthly_compatible": False},
+    "SC": {"rank": 52, "description": "Semi-Annual Average", "monthly_compatible": False},
+    "6D": {"rank": 53, "description": "6 Month Average", "monthly_compatible": False},
+    "AB": {"rank": 54, "description": "Annual Average", "monthly_compatible": False},
+    "1D": {"rank": 55, "description": "12 Month Average", "monthly_compatible": False},
+    "1M": {"rank": 56, "description": "Month 1 Average", "monthly_compatible": False},
+    "2M": {"rank": 57, "description": "Month 2 Average", "monthly_compatible": False},
+    "3M": {"rank": 58, "description": "Month 3 Average", "monthly_compatible": False},
+    "RA": {"rank": 59, "description": "Rolling Average", "monthly_compatible": False},
+    "RE": {"rank": 60, "description": "Individual 12 Month Rolling Average", "monthly_compatible": False},
+    "RF": {"rank": 61, "description": "Aggregate 12 Month Rolling Average", "monthly_compatible": False},
+    "5Y": {"rank": 62, "description": "5 Year Average", "monthly_compatible": False},
+
+    # Average-like geometric/median fallback values
+    "DA": {"rank": 70, "description": "Daily Geometric Average", "monthly_compatible": True},
+    "DM": {"rank": 71, "description": "Daily Geometric", "monthly_compatible": False},
+    "GA": {"rank": 72, "description": "Geometric Mean", "monthly_compatible": False},
+    "LA": {"rank": 73, "description": "Logarithmic Mean", "monthly_compatible": False},
+    "MD": {"rank": 74, "description": "Median", "monthly_compatible": False},
+    "DF": {"rank": 75, "description": "Daily Median", "monthly_compatible": False},
+    "SE": {"rank": 76, "description": "Single Reading", "monthly_compatible": False},
+    "VA": {"rank": 77, "description": "Value", "monthly_compatible": False},
+    "DN": {"rank": 78, "description": "Discharged", "monthly_compatible": False},
+}
+
+# Broad type ranking. AVG is the expected category for most mapped averages.
+# Other central-value labels remain eligible only as fallbacks. MAX/MIN/TOTAL
+# are deliberately not candidates for return-flow estimation.
+STATISTICAL_TYPE_PRIORITY = {
+    "AVG": 0,
+    "MEAN": 1,
+    "MEDIAN": 2,
+}
 
 
 
@@ -128,21 +227,7 @@ class ReturnComponent:
         raise_on_conflicting_ties: bool = True,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
-        Select one representative flow value per permit/feature/period.
-
-        Substantive priority:
-        1. AVG statistical-base type.
-        2. Monitoring location: 1, EG, Y, EA, ED, E1, E2, E3, then other.
-        3. Statistical base: DB, MB, AB, QB, then other.
-        4. Exact or unqualified values.
-        5. Rows without a NODI code.
-
-        Tie breakers:
-        1. Most recent VALUE_RECEIVED_DATE.
-        2. Highest available DMR/source identifier.
-
-        Equal-priority candidates with different flow values raise an error by
-        default. They are never summed automatically.
+        Select one representative flow per permit, feature, and period.
         """
         if dmr.empty:
             return dmr.copy(), dmr.copy()
@@ -185,9 +270,9 @@ class ReturnComponent:
             "STATISTICAL_BASE_CODE",
             "STATISTICAL_BASE_TYPE_CODE",
             "DMR_VALUE_QUALIFIER_CODE",
-            "LIMIT_VALUE_QUALIFIER_CODE",
+            #"LIMIT_VALUE_QUALIFIER_CODE",
             "NODI_CODE",
-            "VALUE_TYPE_CODE",
+            #"VALUE_TYPE_CODE",
             "PARAMETER_CODE",
         ]
         #for col in code_cols:
@@ -209,24 +294,27 @@ class ReturnComponent:
                 + sample.to_string(index=False)
             )
 
-        base_type_priority = {"AVG": 0}
-        work["_base_type_rank"] = (
+        # Add metadata from the expanded code mapping.
+        work["stat_base_description"] = work["STATISTICAL_BASE_CODE"].map(
+            lambda code: STATISTICAL_BASE_MAP.get(code, {}).get("description")
+        )
+        work["_stat_base_rank"] = work["STATISTICAL_BASE_CODE"].map(
+            lambda code: STATISTICAL_BASE_MAP.get(code, {}).get("rank", 900)
+        ).astype(int)
+        work["monthly_average_compatible"] = work["STATISTICAL_BASE_CODE"].map(
+            lambda code: STATISTICAL_BASE_MAP.get(code, {}).get(
+                "monthly_compatible", False
+            )
+        )
+        work["_monthly_compat_rank"] = (~work["monthly_average_compatible"]).astype(int)
+
+        work["_stat_type_rank"] = (
             work["STATISTICAL_BASE_TYPE_CODE"]
-            .map(base_type_priority)
-            .fillna(90)
+            .map(STATISTICAL_TYPE_PRIORITY)
+            .fillna(900)
             .astype(int)
         )
-
-        location_priority = {
-            "1": 0,
-            "EG": 1,
-            "Y": 2,
-            "EA": 3,
-            "ED": 4,
-            "E1": 5,
-            "E2": 6,
-            "E3": 7,
-        }
+        
         work["_location_rank"] = (
             work["MONITORING_LOCATION_CODE"]
             .map(location_priority)
@@ -234,80 +322,88 @@ class ReturnComponent:
             .astype(int)
         )
 
-        stat_base_priority = {
-            "DB": 0,
-            "MB": 1,
-            "AB": 2,
-            "QB": 3,
-        }
-        work["_stat_base_rank"] = (
-            work["STATISTICAL_BASE_CODE"]
-            .map(stat_base_priority)
-            .fillna(90)
-            .astype(int)
+        # Candidate eligibility:
+        # - known representative code, or
+        # - unknown code explicitly categorized by EPA as AVG/MEAN/MEDIAN.
+        work["known_stat_base"] = work["STATISTICAL_BASE_CODE"].isin(
+            STATISTICAL_BASE_MAP
         )
-
-        if "DMR_VALUE_QUALIFIER_CODE" in work.columns:
-            qualifier = work["DMR_VALUE_QUALIFIER_CODE"]
-            work["_qualifier_rank"] = 10
-            work.loc[qualifier.isna() | qualifier.eq("="), "_qualifier_rank"] = 0
+        work["eligible_average_candidate"] = (
+            work["known_stat_base"]
+            | work["STATISTICAL_BASE_TYPE_CODE"].isin(
+                STATISTICAL_TYPE_PRIORITY
+            )
+        )
+        # MAX, MIN, TOTAL and similar rows remain in the audit but cannot be
+        # selected as representative return-flow values.
+        eligible = work[work["eligible_average_candidate"]].copy()
+        if eligible.empty:
+            work["selection_result"] = "excluded_no_average_candidate"
+            return eligible, work
+            
+        if "DMR_VALUE_QUALIFIER_CODE" in eligible.columns:
+            qualifier = eligible["DMR_VALUE_QUALIFIER_CODE"]
+            eligible["_qualifier_rank"] = 10
+            eligible.loc[qualifier.isna() | qualifier.eq("="), "_qualifier_rank"] = 0
         else:
-            work["_qualifier_rank"] = 0
+            eligible["_qualifier_rank"] = 0
 
-        if "NODI_CODE" in work.columns:
-            work["_nodi_rank"] = work["NODI_CODE"].notna().astype(int)
+        if "NODI_CODE" in eligible.columns:
+            eligible["_nodi_rank"] = eligible["NODI_CODE"].notna().astype(int)
         else:
-            work["_nodi_rank"] = 0
+            eligible["_nodi_rank"] = 0
 
-        if "VALUE_RECEIVED_DATE" in work.columns:
-            work["_received_date"] = pd.to_datetime(
-                work["VALUE_RECEIVED_DATE"],
+        if "VALUE_RECEIVED_DATE" in eligible.columns:
+            eligible["_received_date"] = pd.to_datetime(
+                eligible["VALUE_RECEIVED_DATE"],
                 errors="coerce",
             )
         else:
-            work["_received_date"] = pd.NaT
+            eligible["_received_date"] = pd.NaT
 
-        work["selection_basis"] = (
+        # Unknown AVG codes remain valid fallbacks but rank after known codes.
+        
+        eligible["selection_basis"] = (
             "location="
-            + work["MONITORING_LOCATION_CODE"].fillna("missing")
+            + eligible["MONITORING_LOCATION_CODE"].fillna("missing")
             + ";stat_base="
-            + work["STATISTICAL_BASE_CODE"].fillna("missing")
+            + eligible["STATISTICAL_BASE_CODE"].fillna("missing")
             + ";stat_type="
-            + work["STATISTICAL_BASE_TYPE_CODE"].fillna("missing")
+            + eligible["STATISTICAL_BASE_TYPE_CODE"].fillna("missing")
+            + ";description=" 
+            + eligible["stat_base_description"].fillna("unmapped average fallback")
         )
 
-        work["selection_tier"] = (
-            work["_base_type_rank"].astype(str)
-            + "-"
-            + work["_location_rank"].astype(str)
-            + "-"
-            + work["_stat_base_rank"].astype(str)
-        )
+        # Exact duplicates can arise from multiple limit rows. IDs are not part
+        # of this definition because different IDs may reference the same value.
 
         exact_candidate_cols = group_cols + [
-            "PARAMETER_CODE",
+            #"PARAMETER_CODE",
             "MONITORING_LOCATION_CODE",
             "STATISTICAL_BASE_CODE",
             "STATISTICAL_BASE_TYPE_CODE",
             "FLOW_MGD",
         ]
         exact_candidate_cols = [
-            col for col in exact_candidate_cols if col in work.columns
+            col for col in exact_candidate_cols if col in eligible.columns
         ]
 
-        work["_candidate_copy_count"] = (
-            work
+        eligible["_candidate_copy_count"] = (
+            eligible
             .groupby(exact_candidate_cols, dropna=False)["FLOW_MGD"]
             .transform("size")
         )
-        work = work.drop_duplicates(
+        eligible = eligible.drop_duplicates(
             subset=exact_candidate_cols,
             keep="first",
         ).copy()
 
         substantive_rank_cols = [
-            "_base_type_rank",
+            "_stat_type_rank",
             "_location_rank",
+            "_monthly_compat_rank",
+            "_known_code_rank",
+            #"_base_type_rank",
             "_stat_base_rank",
             "_qualifier_rank",
             "_nodi_rank",
@@ -317,13 +413,13 @@ class ReturnComponent:
         work["_priority_tuple"] = list(
             zip(*(work[col] for col in substantive_rank_cols))
         )
-        work["_best_priority_tuple"] = (
-            work
+        eligible["_best_priority_tuple"] = (
+            eligible
             .groupby(group_cols, dropna=False)["_priority_tuple"]
             .transform("min")
         )
-        work["_is_top_priority_candidate"] = work["_priority_tuple"].eq(
-            work["_best_priority_tuple"]
+        eligible["_is_top_priority_candidate"] = eligible["_priority_tuple"].eq(
+            eligible["_best_priority_tuple"]
         )
 
         top_candidates = work[work["_is_top_priority_candidate"]].copy()
@@ -352,10 +448,8 @@ class ReturnComponent:
                 "STATISTICAL_BASE_CODE",
                 "STATISTICAL_BASE_TYPE_CODE",
                 "FLOW_MGD",
-                "DMR_VALUE_QUALIFIER_CODE",
-                "VALUE_RECEIVED_DATE",
                 "DMR_VALUE_ID",
-                "selection_basis",
+                "stat_base_description",
             ]
             display_cols = [
                 col for col in display_cols if col in conflict_rows.columns
@@ -369,7 +463,7 @@ class ReturnComponent:
             if raise_on_conflicting_ties:
                 raise ValueError(message)
             print("[ReturnFlow] WARNING: " + message)
-
+        # Operational tie breakers apply only after scientific ranking.
         sort_cols = group_cols + substantive_rank_cols + ["_received_date"]
         ascending = [True] * len(group_cols) + [True] * len(
             substantive_rank_cols
@@ -382,16 +476,16 @@ class ReturnComponent:
             "LIMIT_VALUE_ID",
             "LIMIT_ID",
         ]:
-            if optional_id in work.columns:
+            if optional_id in eligible.columns:
                 sort_col = f"_sort_{optional_id}"
-                work[sort_col] = pd.to_numeric(
-                    work[optional_id],
+                eligible[sort_col] = pd.to_numeric(
+                    eligible[optional_id],
                     errors="coerce",
                 )
                 sort_cols.append(sort_col)
                 ascending.append(False)
 
-        work = work.sort_values(
+        eligible = work.sort_values(
             sort_cols,
             ascending=ascending,
             na_position="last",
@@ -420,39 +514,57 @@ class ReturnComponent:
             "selection_status",
         ] = "selected_from_conflicting_tie"
 
-        selected_counts = selected.groupby(
-            group_cols,
-            dropna=False,
-        ).size()
-        if (selected_counts != 1).any():
-            raise AssertionError(
-                "Candidate selection did not produce exactly one row per "
-                "permit/feature/monitoring period."
-            )
 
         selected_candidate_ids = set(selected["_candidate_id"])
         audit = work.copy()
-        audit["selection_result"] = "not_selected"
-        audit.loc[
-            audit["_candidate_id"].isin(selected_candidate_ids),
+        audit["selection_result"] = "excluded_not_representative_average"
+        eligible_audit = eligible.copy()
+        eligible_audit["selection_result"] = "not_selected"
+        
+       
+        eligible_audit.loc[
+            eligible_audit["_candidate_id"].isin(selected_candidate_ids),
             "selection_result",
         ] = "selected"
-        audit.loc[
-            audit["_is_top_priority_candidate"]
-            & ~audit["_candidate_id"].isin(selected_candidate_ids),
+        eligible_audit.loc[
+            eligible_audit["_is_top_priority_candidate"]
+            & ~eligible_audit["_candidate_id"].isin(selected_candidate_ids),
             "selection_result",
         ] = "top_priority_tie_not_selected"
 
-        cleanup_cols = [
-            col
-            for col in selected.columns
-            if col.startswith("_best_")
-            or col.startswith("_sort_")
-            or col == "_priority_tuple"
-        ]
-        selected = selected.drop(columns=cleanup_cols, errors="ignore")
+       audit = audit.drop(columns=["selection_result"], errors="ignore").merge(
+            eligible_audit[["_candidate_id", "selection_result"]],
+            on="_candidate_id",
+            how="left",
+        )
+        audit["selection_result"] = audit["selection_result"].fillna(
+            "excluded_not_representative_average"
+        )
+
+        if selected.duplicated(group_cols).any():
+            raise AssertionError("Selector returned more than one row per permit/feature/period.")
 
         return selected, audit
+
+def _build_feature_debug(self, feature_monthly):
+        debug = (
+            feature_monthly.pivot_table(
+                index=["EXTERNAL_PERMIT_NMBR", "MONITORING_PERIOD_END_DATE"],
+                columns="PERM_FEATURE_NMBR",
+                values="FLOW_MGD",
+                aggfunc="sum",
+                fill_value=0,
+            ).reset_index()
+        )
+        debug.columns = [
+            col if col in ["EXTERNAL_PERMIT_NMBR", "MONITORING_PERIOD_END_DATE"]
+            else f"feature_{col}_mgd"
+            for col in debug.columns
+        ]
+        feature_cols = [col for col in debug if col.startswith("feature_")]
+        debug["overall_flow_mgd"] = debug[feature_cols].sum(axis=1)
+        return debug
+    
     # --------------------------------------------------
     # Main build
     # --------------------------------------------------
@@ -524,8 +636,10 @@ class ReturnComponent:
             dmr,
             raise_on_conflicting_ties=True,
         )
-
+        if WRITE_DEBUG_FILES:
+            selection_audit.to_csv("return_dmr_selection_audit.csv", index=False)
         if selected_dmr.empty:
+            print("[ReturnFlow] No representative average-flow candidates selected")
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
 
         print("[ReturnFlow] Candidate rows:", len(dmr))
@@ -554,11 +668,12 @@ class ReturnComponent:
             "PERM_FEATURE_NMBR", #multiple feature/PERM_FEATURE_NMBR may be reported separately
             "STATISTICAL_BASE_CODE",
             "MONITORING_PERIOD_END_DATE",
-            "PARAMETER_CODE",
-            "DMR_VALUE_ID",
+            #"PARAMETER_CODE",
+            #"DMR_VALUE_ID",
             "FLOW_MGD",
             "MONITORING_LOCATION_CODE",
             "STATISTICAL_BASE_TYPE_CODE",
+            "stat_base_description",
             "selection_basis",
             "selection_status",
         ]
@@ -574,13 +689,13 @@ class ReturnComponent:
             ],
             keep=False,
         )
-        if duplicate_selected.any():
-            raise AssertionError(
-                "Selected DMR data contains duplicate permit/feature/period rows:\n"
-                + feature_monthly.loc[duplicate_selected]
-                .head(50)
-                .to_string(index=False)
-            )
+        #if duplicate_selected.any():
+           # raise AssertionError(
+                #"Selected DMR data contains duplicate permit/feature/period rows:\n"
+                #+ feature_monthly.loc[duplicate_selected]
+               # .head(50)
+               # .to_string(index=False)
+            #)
         #dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
         #print("DMR for TX0000027:", pd.DataFrame(dmr_st))
         #print("DMR length after dedup:", len(dmr))
@@ -599,6 +714,10 @@ class ReturnComponent:
         )
 
         feature_monthly["FLOW_ACFT_MONTH"] = mgd_to_afday(feature_monthly["FLOW_MGD"])*feature_monthly["days_in_month"]
+        if WRITE_DEBUG_FILES:
+            self._build_feature_debug(feature_monthly).to_csv(
+                "return_dmr_feature_flow_debug.csv", index=False
+            )
         # Load and normalize TCEQ outfall geometry.
         perm_feature_nmbrs = self.return_source.load_perm_feature_nmbrs()
         perm_feature_nmbrs["PERMIT_NUM"] = self._normalize_npdes(
@@ -619,7 +738,7 @@ class ReturnComponent:
             "[ReturnFlow] PERM_FEATURE_NMBRs rows after dropna:",
             len(perm_feature_nmbrs),
         )
-
+##
         duplicated_geometry_keys = perm_feature_nmbrs.duplicated(
             subset=["PERMIT_NUM", "PERM_FEATURE_NMBR"],
             keep=False,
