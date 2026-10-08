@@ -738,23 +738,8 @@ def _build_feature_debug(self, feature_monthly):
             "[ReturnFlow] PERM_FEATURE_NMBRs rows after dropna:",
             len(perm_feature_nmbrs),
         )
-##
-        duplicated_geometry_keys = perm_feature_nmbrs.duplicated(
-            subset=["PERMIT_NUM", "PERM_FEATURE_NMBR"],
-            keep=False,
-        )
-        if duplicated_geometry_keys.any():
-            geometry_conflicts = (
-                perm_feature_nmbrs.loc[duplicated_geometry_keys]
-                .groupby(["PERMIT_NUM", "PERM_FEATURE_NMBR"])
-                .size()
-            )
-            print(
-                "[ReturnFlow] Duplicate TCEQ permit-feature geometry keys "
-                f"found for {len(geometry_conflicts)} keys; keeping one geometry "
-                "per key."
-            )
 
+       
         perm_feature_nmbrs_feature = (
             perm_feature_nmbrs
             .drop_duplicates(
@@ -839,44 +824,19 @@ def _build_feature_debug(self, feature_monthly):
             indicator= True,
             validate="many_to_one"
         )
-        
-        # Optional join-quality debug
+        if WRITE_DEBUG_FILES:
+            dmr_geo.to_csv("return_dmr_outfall_join_audit.csv", index=False)
 
-        join_debug_cols[
-            [
-                "EXTERNAL_PERMIT_NMBR",
-                "PERMIT_NUM",
-                "PERM_FEATURE_NMBR",
-                "MONITORING_PERIOD_END_DATE",
-                "STATISTICAL_BASE_CODE",
-                "MONITORING_LOCATION_CODE",
-                "STATISTICAL_BASE_TYPE_CODE",
-                "selection_basis",
-                "FLOW_MGD",
-                "FLOW_ACFT_MONTH",
-                "_merge",
-            ]
-        ].to_csv(
-           "return_dmr_PERM_FEATURE_NMBR_join_debug.csv",
-            index=False,
-        )
+        
         #print(dmr_geo["_merge"].value_counts(dropna=False))
 
         missing_geo = dmr_geo[dmr_geo["_merge"] == "left_only"].copy()
 
         if not missing_geo.empty:
-            missing_geo[
-                join_debug_cols[:-1]
-            ].to_csv(
-                "return_dmr_missing_PERM_FEATURE_NMBR_geometry.csv",
-                index=False,
-            )
 
             print(
-                "[ReturnFlow] Missing PERM_FEATURE_NMBR geometry rows: "
-                f"{len(missing_geo)}. "
-                "See return_dmr_missing_PERM_FEATURE_NMBR_geometry.csv"
-            )
+                "[ReturnFlow] Missing outfall geometry rows: "
+                f"{len(missing_geo)}" )
 
         dmr_geo = dmr_geo[
             dmr_geo["_merge"] == "both"
@@ -915,6 +875,19 @@ def _build_feature_debug(self, feature_monthly):
         if dmr_geo.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
 
+        spatial_key = [
+            "EXTERNAL_PERMIT_NMBR",
+            "PERM_FEATURE_NMBR",
+            "MONITORING_PERIOD_END_DATE",
+        ]
+        multi_ws = dmr_geo.groupby(spatial_key)["WS_ID"].nunique()
+        multi_ws = multi_ws[multi_ws > 1]
+        if not multi_ws.empty:
+            raise ValueError(
+                "Selected outfalls intersect multiple ungaged watersheds:\n"
+                + multi_ws.head(50).to_string()
+            )
+
         # --------------------------------------------------
         # Date fields
         # --------------------------------------------------
@@ -945,24 +918,7 @@ def _build_feature_debug(self, feature_monthly):
                 as_index=False,
             )
             .agg(
-                value_acft_month=("FLOW_ACFT_MONTH", "sum"),
-                permits_included=(
-                    "EXTERNAL_PERMIT_NMBR",
-                    lambda x: ";".join(
-                        sorted(x.astype(str).unique())
-                    ),
-                ),
-                PERM_FEATURE_NMBRs_included=(
-                    "PERM_FEATURE_NMBR",
-                    lambda x: ";".join(
-                        sorted(x.astype(str).unique())
-                    ),
-                ),
-                n_permit_PERM_FEATURE_NMBRs=(
-                    "PERM_FEATURE_NMBR",
-                    "size",
-                ),
-            )
+                value_acft_month=("FLOW_ACFT_MONTH", "sum"))
         )
 
         # --------------------------------------------------
