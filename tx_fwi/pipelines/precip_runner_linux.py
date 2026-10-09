@@ -14,8 +14,9 @@ import sys
 #PYTHON_EXE = r"C:\Users\KKarimi\.conda\envs\mrms2\python.exe"
 
 PYTHON_EXE = sys.executable
-PROJECT_ROOT = Path(r"\mnt\twdb_swr\SWR\CoastalScience\Projects\Contracts\Active Contracts\2301792723_UTA_improved_precipitation_data\Deliverables\GageCorrector")
-
+#PROJECT_ROOT = Path(r"\mnt\twdb_swr\SWR\CoastalScience\Projects\Contracts\Active Contracts\2301792723_UTA_improved_precipitation_data\Deliverables\GageCorrector")
+PROJECT_ROOT = Path("/mnt/twdb_swr/SWR/CoastalScience/Projects/Contracts/Active Contracts/2301792723_UTA_improved_precipitation_data/Deliverables/GageCorrector"
+)
 #RAINFALL_PROCESSOR = PROJECT_ROOT / "rainfall_processor.py" 
 RAINFALL_PROCESSOR = Path(r"\home\txrr\UTA_prec\Program\Rainfall Gauge Corrector\rainfall_processor.py")
 PCP_CONVERSION = PROJECT_ROOT / r"pcp_conversion\pcp_conversion_ref.py"
