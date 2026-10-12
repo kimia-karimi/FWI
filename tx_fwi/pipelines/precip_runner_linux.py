@@ -18,20 +18,20 @@ PYTHON_EXE = sys.executable
 PROJECT_ROOT = Path("/mnt/twdb_swr/SWR/CoastalScience/Projects/Contracts/Active Contracts/2301792723_UTA_improved_precipitation_data/Deliverables/GageCorrector"
 )
 #RAINFALL_PROCESSOR = PROJECT_ROOT / "rainfall_processor.py" 
-RAINFALL_PROCESSOR = Path(r"\home\txrr\UTA_prec\Program\Rainfall Gauge Corrector\rainfall_processor.py")
-PCP_CONVERSION = PROJECT_ROOT / r"pcp_conversion\pcp_conversion_ref.py"
+RAINFALL_PROCESSOR = Path(r"/home/txrr/UTA_prec/Program/Rainfall Gauge Corrector/rainfall_processor.py")
+PCP_CONVERSION = PROJECT_ROOT / "pcp_conversion" / "pcp_conversion_ref.py"
 
 SYNOPTIC_TOKEN = "1432cbdbed5647d1a5822907d98ffbee"
 
-BOUNDARY_FILE = PROJECT_ROOT / r"Inputs\Boundary Shapefiles\AOI.shp"
+BOUNDARY_FILE = PROJECT_ROOT / "Inputs"/ "Boundary Shapefiles" / "AOI.shp"
 
 # Keep this consistent with your corrected rainfall_processor buffer logic.
 BUFFER_DISTANCE = "0.05"
 
-PROCESSED_TIF_DIR = PROJECT_ROOT / r"Outputs\Processed TIF"
+PROCESSED_TIF_DIR = PROJECT_ROOT / "Outputs" / "Processed TIF"
 
 # Flat shared PCP folder.
-PCP_SHARED_DIR = PROJECT_ROOT /(r"PCP_Files")
+PCP_SHARED_DIR = PROJECT_ROOT /"PCP_Files"
 
 #LOG_DIR = PCP_SHARED_DIR / "_monthly_logs"
 LOG_DIR = Path("/home/txrr/UTA_prec/Program/Rainfall Gauge Corrector/_monthly_logs")
