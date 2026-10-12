@@ -34,7 +34,7 @@ PROCESSED_TIF_DIR = PROJECT_ROOT / r"Outputs\Processed TIF"
 PCP_SHARED_DIR = PROJECT_ROOT /(r"PCP_Files")
 
 #LOG_DIR = PCP_SHARED_DIR / "_monthly_logs"
-
+LOG_DIR = Path(r"\_monthly_logs")
 PRE_BUFFER_DAYS = 8
 POST_BUFFER_DAYS = 7
 
@@ -84,7 +84,7 @@ def write_manifest(
     download_start: datetime,
     download_end: datetime,
 ) -> None:
-    LOG_DIR = Path(r"\_monthly_logs")
+    
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     
     pcp_files = sorted(p.name for p in PCP_SHARED_DIR.glob("*.pcp"))
