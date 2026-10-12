@@ -84,7 +84,7 @@ def write_manifest(
     download_start: datetime,
     download_end: datetime,
 ) -> None:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    #LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     pcp_files = sorted(p.name for p in PCP_SHARED_DIR.glob("*.pcp"))
 
