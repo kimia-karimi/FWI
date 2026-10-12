@@ -34,7 +34,7 @@ PROCESSED_TIF_DIR = PROJECT_ROOT / r"Outputs\Processed TIF"
 PCP_SHARED_DIR = PROJECT_ROOT /(r"PCP_Files")
 
 #LOG_DIR = PCP_SHARED_DIR / "_monthly_logs"
-LOG_DIR = Path("\home\txrr\UTA_prec\Program\Rainfall Gauge Corrector\_monthly_logs")
+LOG_DIR = Path("/home/txrr/UTA_prec/Program/Rainfall Gauge Corrector/_monthly_logs")
 PRE_BUFFER_DAYS = 8
 POST_BUFFER_DAYS = 7
 
