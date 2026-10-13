@@ -532,7 +532,7 @@ class ReturnComponent:
             "selection_result",
         ] = "top_priority_tie_not_selected"
 
-       audit = audit.drop(columns=["selection_result"], errors="ignore").merge(
+        audit = audit.drop(columns=["selection_result"], errors="ignore").merge(
             eligible_audit[["_candidate_id", "selection_result"]],
             on="_candidate_id",
             how="left",
