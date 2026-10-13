@@ -568,7 +568,7 @@ def _build_feature_debug(self, feature_monthly):
     # --------------------------------------------------
     # Main build
     # --------------------------------------------------
-    def build(self, start, end):
+def build(self, start, end):
         start_ts = pd.Timestamp(start)
         end_ts = pd.Timestamp(end)
         start_fy = fiscal_year(start_ts)
