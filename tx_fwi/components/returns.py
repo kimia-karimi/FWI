@@ -546,7 +546,7 @@ class ReturnComponent:
 
         return selected, audit
 
-def _build_feature_debug(self, feature_monthly):
+    def _build_feature_debug(self, feature_monthly):
         debug = (
             feature_monthly.pivot_table(
                 index=["EXTERNAL_PERMIT_NMBR", "MONITORING_PERIOD_END_DATE"],
@@ -568,7 +568,7 @@ def _build_feature_debug(self, feature_monthly):
     # --------------------------------------------------
     # Main build
     # --------------------------------------------------
-def build(self, start, end):
+    def build(self, start, end):
         start_ts = pd.Timestamp(start)
         end_ts = pd.Timestamp(end)
         start_fy = fiscal_year(start_ts)
@@ -975,7 +975,7 @@ def build(self, start, end):
         ]
 
     # --------------------------------------------------
-def run(self, start=None, end=None):
+    def run(self, start=None, end=None):
 
         if start is None:
             wm = self.ctx.storage.get_watermark(
