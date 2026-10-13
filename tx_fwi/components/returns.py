@@ -975,7 +975,7 @@ def build(self, start, end):
         ]
 
     # --------------------------------------------------
-    def run(self, start=None, end=None):
+def run(self, start=None, end=None):
 
         if start is None:
             wm = self.ctx.storage.get_watermark(
