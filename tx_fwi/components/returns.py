@@ -413,7 +413,7 @@ class ReturnComponent:
         ]
 
         # Rank candidates lexicographically, not independently by each minimum.
-        work["_priority_tuple"] = list(
+        eligible["_priority_tuple"] = list(
             zip(*(eligible[col] for col in substantive_rank_cols))
         )
         eligible["_best_priority_tuple"] = (
