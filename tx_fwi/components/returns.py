@@ -821,7 +821,7 @@ class ReturnComponent:
         # Join DMR permit + feature -> TCEQ permit + PERM_FEATURE_NMBR
         # --------------------------------------------------
         dmr_geo = feature_monthly.merge(
-            PERM_FEATURE_NMBRs_feature,
+            perm_feature_nmbrs_feature,
             on=["PERMIT_NUM","PERM_FEATURE_NMBR"],
             how="left",
             indicator= True,
