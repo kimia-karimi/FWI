@@ -317,7 +317,7 @@ class ReturnComponent:
         
         work["_location_rank"] = (
             work["MONITORING_LOCATION_CODE"]
-            .map(location_priority)
+            .map(MONITORING_LOCATION_PRIORITY)
             .fillna(90)
             .astype(int)
         )
@@ -328,6 +328,9 @@ class ReturnComponent:
         work["known_stat_base"] = work["STATISTICAL_BASE_CODE"].isin(
             STATISTICAL_BASE_MAP
         )
+        work["_known_code_rank"] = (
+            ~work["known_stat_base"]
+        ).astype(int)
         work["eligible_average_candidate"] = (
             work["known_stat_base"]
             | work["STATISTICAL_BASE_TYPE_CODE"].isin(
@@ -411,7 +414,7 @@ class ReturnComponent:
 
         # Rank candidates lexicographically, not independently by each minimum.
         work["_priority_tuple"] = list(
-            zip(*(work[col] for col in substantive_rank_cols))
+            zip(*(eligible[col] for col in substantive_rank_cols))
         )
         eligible["_best_priority_tuple"] = (
             eligible
@@ -422,7 +425,7 @@ class ReturnComponent:
             eligible["_best_priority_tuple"]
         )
 
-        top_candidates = work[work["_is_top_priority_candidate"]].copy()
+        top_candidates = eligible[eligible["_is_top_priority_candidate"]].copy()
         top_summary = (
             top_candidates
             .groupby(group_cols, dropna=False, as_index=False)
@@ -485,14 +488,14 @@ class ReturnComponent:
                 sort_cols.append(sort_col)
                 ascending.append(False)
 
-        eligible = work.sort_values(
+        eligible = eligible.sort_values(
             sort_cols,
             ascending=ascending,
             na_position="last",
             kind="stable",
         ).copy()
 
-        selected = work.drop_duplicates(
+        selected = eligible.drop_duplicates(
             subset=group_cols,
             keep="first",
         ).copy()
