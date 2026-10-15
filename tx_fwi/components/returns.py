@@ -922,74 +922,74 @@ class ReturnComponent:
             )
         )
     #Only permits with one mapped watershed are eligible:
-    permit_ws_fallback = permit_ws_summary[
-        permit_ws_summary[
-            "n_mapped_watersheds"
-        ].eq(1)
-    ].copy()
+        permit_ws_fallback = permit_ws_summary[
+            permit_ws_summary[
+                "n_mapped_watersheds"
+            ].eq(1)
+        ].copy()
     #Apply the fallback to unmatched features
     #unmatched = dmr_geo[
         #dmr_geo["_merge"].eq("left_only")
     #].copy()
 
-    missing_geo = missing_geo.merge(
-        permit_ws_fallback,
-        on="PERMIT_NUM",
-        how="left",
-        validate="many_to_one",
-    )
+        missing_geo = missing_geo.merge(
+            permit_ws_fallback,
+            on="PERMIT_NUM",
+            how="left",
+            validate="many_to_one",
+        )
 
-    fallback_mask = missing_geo[
-        "fallback_WS_ID"
-    ].notna()
+        fallback_mask = missing_geo[
+            "fallback_WS_ID"
+        ].notna()
 
-    missing_geo.loc[
-        fallback_mask,
-        "WS_ID",
-    ] = missing_geo.loc[
-        fallback_mask,
-        "fallback_WS_ID",
-    ]
+        missing_geo.loc[
+            fallback_mask,
+            "WS_ID",
+        ] = missing_geo.loc[
+            fallback_mask,
+            "fallback_WS_ID",
+        ]
 
-    missing_geo.loc[
-        fallback_mask,
-        "Estuary",
-    ] = missing_geo.loc[
-        fallback_mask,
-        "fallback_Estuary",
-    ]
+        missing_geo.loc[
+            fallback_mask,
+            "Estuary",
+        ] = missing_geo.loc[
+            fallback_mask,
+            "fallback_Estuary",
+         ]   
 
-    missing_geo.loc[
-        fallback_mask,
-        "geometry_assignment_method",
-    ] = "permit_same_watershed_fallback"
+        missing_geo.loc[
+            fallback_mask,
+            "geometry_assignment_method",
+        ] = "permit_same_watershed_fallback"
     #Keep unresolved records visible
-    missing_geo.loc[
-        ~fallback_mask,
-        "geometry_assignment_method",
-    ] = "unresolved_missing_geometry"
+        missing_geo.loc[
+            ~fallback_mask,
+            "geometry_assignment_method",
+        ] = "unresolved_missing_geometry"
 
-    unresolved = missing_geo[
-        ~fallback_mask
-    ].copy()
+        unresolved = missing_geo[
+            ~fallback_mask
+        ].copy()
 
-    unresolved.to_csv(
-        "return_dmr_unresolved_geometry.csv",
-        index=False,
-    )
+        unresolved.to_csv(
+            "return_dmr_unresolved_geometry.csv",
+            index=False,
+        )
     #Combine exact and fallback assignments
-    fallback_assigned = missing_geo[
-        fallback_mask
-    ].copy()
+        fallback_assigned = missing_geo[
+            fallback_mask
+        ].copy()
 
-    dmr_geo = pd.concat( #this or assigned to use for the date fields
-        [
-            dmr_geo,
-            fallback_assigned,
-        ],
-        ignore_index=True,
-        sort=False,
-    )
+        dmr_geo = pd.concat( #this or assigned to use for the date fields
+            [
+                dmr_geo,
+                fallback_assigned,
+             ],
+            ignore_index=True,
+            sort=False,
+        )
         # --------------------------------------------------
         # Date fields
         # --------------------------------------------------
