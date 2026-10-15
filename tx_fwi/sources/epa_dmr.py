@@ -382,9 +382,37 @@ class ReturnFlowSource:
             dmr_geo.crs
         )
 
+        watersheds_ungaged = (
+            watersheds.loc[
+                watersheds["HAS_UNGAGE"].eq(1)
+            ]
+            .copy()
+        )
+
+        # Collapse multiple geometry rows belonging
+        # to the same watershed identifier.
+       watersheds_ungaged = (
+            watersheds_ungaged
+            .dissolve(
+                by=[
+                    "WS_ID",
+                    "Estuary",
+                    "HAS_UNGAGE",
+                ],
+                as_index=False,
+            )
+        )
+
+       within_join = gpd.sjoin(
+            dmr_geo,
+            watersheds_ungaged,
+            how="left",
+            predicate="within",
+        )
+
         dmr_geo = gpd.sjoin(
             dmr_geo,
-            watersheds,
+            watersheds_ungaged,
             how="inner",
             predicate="intersects",
         )
