@@ -332,8 +332,7 @@ class ReturnComponent:
             ~work["known_stat_base"]
         ).astype(int)
         work["eligible_average_candidate"] = (
-            work["known_stat_base"]
-            | work["STATISTICAL_BASE_TYPE_CODE"].isin(
+            work["STATISTICAL_BASE_TYPE_CODE"].isin(
                 STATISTICAL_TYPE_PRIORITY
             )
         )
@@ -549,24 +548,24 @@ class ReturnComponent:
 
         return selected, audit
 
-    def _build_feature_debug(self, feature_monthly):
-        debug = (
-            feature_monthly.pivot_table(
-                index=["EXTERNAL_PERMIT_NMBR", "MONITORING_PERIOD_END_DATE"],
-                columns="PERM_FEATURE_NMBR",
-                values="FLOW_MGD",
-                aggfunc="sum",
-                fill_value=0,
-            ).reset_index()
-        )
-        debug.columns = [
-            col if col in ["EXTERNAL_PERMIT_NMBR", "MONITORING_PERIOD_END_DATE"]
-            else f"feature_{col}_mgd"
-            for col in debug.columns
-        ]
-        feature_cols = [col for col in debug if col.startswith("feature_")]
-        debug["overall_flow_mgd"] = debug[feature_cols].sum(axis=1)
-        return debug
+    #def _build_feature_debug(self, feature_monthly):
+        #debug = (
+            #feature_monthly.pivot_table(
+               # index=["EXTERNAL_PERMIT_NMBR", "MONITORING_PERIOD_END_DATE"],
+                #columns="PERM_FEATURE_NMBR",
+                #values="FLOW_MGD",
+                #aggfunc="sum",
+                #fill_value=0,
+            #).reset_index()
+      #  )
+        #debug.columns = [
+           # col if col in ["EXTERNAL_PERMIT_NMBR", "MONITORING_PERIOD_END_DATE"]
+            #else f"feature_{col}_mgd"
+            #for col in debug.columns
+        #]
+        #feature_cols = [col for col in debug if col.startswith("feature_")]
+        #debug["overall_flow_mgd"] = debug[feature_cols].sum(axis=1)
+        #return debug
     
     # --------------------------------------------------
     # Main build
@@ -827,11 +826,13 @@ class ReturnComponent:
             indicator= True,
             validate="many_to_one"
         )
-        if WRITE_DEBUG_FILES:
-            dmr_geo.to_csv("return_dmr_outfall_join_audit.csv", index=False)
+        
 
         
         #print(dmr_geo["_merge"].value_counts(dropna=False))
+
+        dmr_geo["geometry_assignment_method"] = pd.NA
+        dmr_geo.loc[dmr_geo["_merge"].eq("both"),"geometry_assignment_method",] = "exact_feature_geometry"
 
         missing_geo = dmr_geo[dmr_geo["_merge"] == "left_only"].copy()
 
@@ -841,10 +842,14 @@ class ReturnComponent:
                 "[ReturnFlow] Missing outfall geometry rows: "
                 f"{len(missing_geo)}" )
 
+        #dmr_geo = dmr_geo[
+            #dmr_geo["_merge"] == "both"
+        #].drop(columns=["_merge"]).dropna(subset=["geometry"]
+        #)
+
         dmr_geo = dmr_geo[
-            dmr_geo["_merge"] == "both"
-        ].drop(columns=["_merge"]).dropna(subset=["geometry"]
-        )
+            dmr_geo["_merge"].eq("both")].copy()
+
 
         if dmr_geo.empty:
             return pd.DataFrame(columns=REQUIRED_OUT_COLS)
@@ -890,7 +895,101 @@ class ReturnComponent:
                 "Selected outfalls intersect multiple ungaged watersheds:\n"
                 + multi_ws.head(50).to_string()
             )
+        # --------------------------------------------------
+        # Build a permit to watershed fallback table (Determine whether all matched features for a permit fall in one watershed)
+        # --------------------------------------------
 
+        permit_ws_summary = (
+            dmr_geo
+            .dropna(subset=["WS_ID"])
+            .groupby(
+                "PERMIT_NUM",
+                as_index=False
+            )
+            .agg(
+                n_mapped_watersheds=(
+                    "WS_ID",
+                    "nunique",
+                ),
+                fallback_WS_ID=(
+                    "WS_ID",
+                    "first",
+                ),
+                fallback_Estuary=(
+                    "Estuary",
+                    "first",
+                ),
+            )
+        )
+    #Only permits with one mapped watershed are eligible:
+    permit_ws_fallback = permit_ws_summary[
+        permit_ws_summary[
+            "n_mapped_watersheds"
+        ].eq(1)
+    ].copy()
+    #Apply the fallback to unmatched features
+    #unmatched = dmr_geo[
+        #dmr_geo["_merge"].eq("left_only")
+    #].copy()
+
+    missing_geo = missing_geo.merge(
+        permit_ws_fallback,
+        on="PERMIT_NUM",
+        how="left",
+        validate="many_to_one",
+    )
+
+    fallback_mask = missing_geo[
+        "fallback_WS_ID"
+    ].notna()
+
+    missing_geo.loc[
+        fallback_mask,
+        "WS_ID",
+    ] = missing_geo.loc[
+        fallback_mask,
+        "fallback_WS_ID",
+    ]
+
+    missing_geo.loc[
+        fallback_mask,
+        "Estuary",
+    ] = missing_geo.loc[
+        fallback_mask,
+        "fallback_Estuary",
+    ]
+
+    missing_geo.loc[
+        fallback_mask,
+        "geometry_assignment_method",
+    ] = "permit_same_watershed_fallback"
+    #Keep unresolved records visible
+    missing_geo.loc[
+        ~fallback_mask,
+        "geometry_assignment_method",
+    ] = "unresolved_missing_geometry"
+
+    unresolved = missing_geo[
+        ~fallback_mask
+    ].copy()
+
+    unresolved.to_csv(
+        "return_dmr_unresolved_geometry.csv",
+        index=False,
+    )
+    #Combine exact and fallback assignments
+    fallback_assigned = missing_geo[
+        fallback_mask
+    ].copy()
+
+    dmr_geo = pd.concat( #this or assigned to use for the date fields
+        [
+            dmr_geo,
+            fallback_assigned,
+        ],
+        ignore_index=True,
+        sort=False,
+    )
         # --------------------------------------------------
         # Date fields
         # --------------------------------------------------
@@ -903,6 +1002,8 @@ class ReturnComponent:
             dmr_geo["MONITORING_PERIOD_END_DATE"]
             .dt.month
         )
+        if WRITE_DEBUG_FILES:
+            dmr_geo.to_csv("return_dmr_outfall_join_audit.csv", index=False)
 
         # --------------------------------------------------
         # Aggregate by watershed/month
