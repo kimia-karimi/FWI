@@ -28,7 +28,7 @@ class ReturnFlowSource:
 
     PERM_FEATURE_NMBR_URL = (
       "https://gisweb.tceq.texas.gov/arcgis/rest/services/"
-      "Public/WW_outfalls/MapServer/0/query"
+      "Public/WW_oufalls/MapServer/0/query"
       "?outFields=*"
       "&where=1%3D1"
       "&f=geojson"
