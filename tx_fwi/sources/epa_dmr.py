@@ -28,7 +28,7 @@ class ReturnFlowSource:
 
     PERM_FEATURE_NMBR_URL = (
       "https://gisweb.tceq.texas.gov/arcgis/rest/services/"
-      "Public/WW_oufalls/MapServer/0/query"
+      "Public/WW_outfalls/MapServer/0/query"
       "?outFields=*"
       "&where=1%3D1"
       "&f=geojson"
@@ -143,7 +143,7 @@ class ReturnFlowSource:
             (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
             & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
             & (dmr["PARAMETER_CODE"].astype(str).str.strip() == "50050")
-            & (dmr["STATISTICAL_BASE_CODE"].astype(str) == "DB") 
+            #& (dmr["STATISTICAL_BASE_CODE"].astype(str) == "DB") 
         ].copy()
 
         #print("Flow rows after date and parameter filter:", len(dmr))
@@ -178,8 +178,8 @@ class ReturnFlowSource:
                 "PERMIT_NUM","PERM_FEATURE_NMBR",
             ]
         )
-        dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS', 'STATISTICAL_BASE_CODE']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
-        print("DMR for TX0000027:", pd.DataFrame(dmr_st))
+        #dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS', 'STATISTICAL_BASE_CODE']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
+        #print("DMR for TX0000027:", pd.DataFrame(dmr_st))
         # --------------------------------------------------
         # Avoid inflating flow because one reported DMR value
         # can appear more than once due to limit rows.
@@ -306,9 +306,11 @@ class ReturnFlowSource:
             PERM_FEATURE_NMBRs_feature,
             on=["PERMIT_NUM","PERM_FEATURE_NMBR"],
             how="left",
-            indicator= True
+            indicator= True,
+            validate="many_to_one",
         )
-        
+        dmr_geo["geometry_assignment_method"] = pd.NA
+
         # Optional join-quality debug
 
         dmr_geo[
