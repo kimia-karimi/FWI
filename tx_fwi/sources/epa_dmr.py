@@ -391,7 +391,7 @@ class ReturnFlowSource:
 
         # Collapse multiple geometry rows belonging
         # to the same watershed identifier.
-       watersheds_ungaged = (
+        watersheds_ungaged = (
             watersheds_ungaged
             .dissolve(
                 by=[
