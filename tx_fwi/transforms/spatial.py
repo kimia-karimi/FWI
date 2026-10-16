@@ -54,7 +54,383 @@ def normalize_ws_id(value):
 
     return text.zfill(5) if text.isdigit() else text
 
+def fill_missing_geometry_from_group(
+    records: pd.DataFrame,
+    geometry_lookup: gpd.GeoDataFrame,
+    *,
+    group_col: str,
+    feature_col: str,
+    geometry_col: str = "geometry",
+    donor_sort_cols: Sequence[str] | None = None,
+    assignment_col: str = "geometry_assignment_method",
+    donor_feature_col: str = "geometry_donor_feature",
+) -> tuple[gpd.GeoDataFrame, pd.DataFrame]:
+    """
+    Join records to exact feature geometry, then fill missing geometry
+    from the first available feature within the same group.
 
+    Intended uses
+    -------------
+    Return flow:
+        group_col = "PERMIT_NUM"
+        feature_col = "PERM_FEATURE_NMBR"
+
+    Diversion:
+        group_col = "WR_ID"
+        feature_col = a point identifier, when available
+
+    Rules
+    -----
+    1. Exact group + feature geometry is always preferred.
+    2. Missing geometry receives the first available geometry from the
+       same group.
+    3. The fallback geometry is used only once for each source record.
+    4. The donor feature is retained for auditing.
+    5. Records with no geometry anywhere in the group remain unresolved.
+
+    Returns
+    -------
+    assigned
+        Records with exact or group-fallback geometry.
+
+    unresolved
+        Records for which the group has no available geometry.
+    """
+    record_required = [
+        group_col,
+        feature_col,
+    ]
+
+    lookup_required = [
+        group_col,
+        feature_col,
+        geometry_col,
+    ]
+
+    missing_record_cols = [
+        col
+        for col in record_required
+        if col not in records.columns
+    ]
+
+    missing_lookup_cols = [
+        col
+        for col in lookup_required
+        if col not in geometry_lookup.columns
+    ]
+
+    if missing_record_cols:
+        raise KeyError(
+            "Records are missing geometry-join columns: "
+            + ", ".join(missing_record_cols)
+        )
+
+    if missing_lookup_cols:
+        raise KeyError(
+            "Geometry lookup is missing columns: "
+            + ", ".join(missing_lookup_cols)
+        )
+
+    if not isinstance(
+        geometry_lookup,
+        gpd.GeoDataFrame,
+    ):
+        raise TypeError(
+            "geometry_lookup must be a GeoDataFrame."
+        )
+
+    if geometry_lookup.crs is None:
+        raise ValueError(
+            "geometry_lookup has no CRS."
+        )
+
+    source_records = records.copy()
+    lookup = geometry_lookup.copy()
+
+    # Keep only usable group, feature, and geometry records.
+    lookup = lookup.dropna(
+        subset=[
+            group_col,
+            feature_col,
+            geometry_col,
+        ]
+    ).copy()
+
+    if lookup.empty:
+        unresolved = source_records.copy()
+
+        unresolved[assignment_col] = (
+            "unresolved_no_group_geometry"
+        )
+
+        unresolved[donor_feature_col] = pd.NA
+
+        unresolved = gpd.GeoDataFrame(
+            unresolved,
+            geometry=[
+                None
+            ] * len(unresolved),
+            crs=geometry_lookup.crs,
+        )
+
+        return unresolved.iloc[0:0].copy(), unresolved
+
+    # Check whether the same group + feature key has several
+    # genuinely different geometries.
+    lookup["_geometry_wkt"] = (
+        lookup[geometry_col]
+        .to_wkt()
+    )
+
+    geometry_key_summary = (
+        lookup
+        .groupby(
+            [
+                group_col,
+                feature_col,
+            ],
+            dropna=False,
+            as_index=False,
+        )
+        .agg(
+            n_distinct_geometries=(
+                "_geometry_wkt",
+                "nunique",
+            )
+        )
+    )
+
+    conflicting_keys = (
+        geometry_key_summary.loc[
+            geometry_key_summary[
+                "n_distinct_geometries"
+            ] > 1
+        ]
+        .copy()
+    )
+
+    if not conflicting_keys.empty:
+        conflict_rows = lookup.merge(
+            conflicting_keys[
+                [
+                    group_col,
+                    feature_col,
+                ]
+            ],
+            on=[
+                group_col,
+                feature_col,
+            ],
+            how="inner",
+        )
+
+        raise ValueError(
+            "Multiple distinct geometries exist for the same "
+            f"{group_col} + {feature_col} key:\n"
+            + conflict_rows[
+                [
+                    group_col,
+                    feature_col,
+                    "_geometry_wkt",
+                ]
+            ]
+            .head(50)
+            .to_string(index=False)
+        )
+
+    # Collapse repeated copies of the same exact geometry.
+    exact_lookup = (
+        lookup
+        .drop_duplicates(
+            subset=[
+                group_col,
+                feature_col,
+            ],
+            keep="first",
+        )
+        [
+            [
+                group_col,
+                feature_col,
+                geometry_col,
+            ]
+        ]
+        .copy()
+    )
+
+    exact_lookup = exact_lookup.rename(
+        columns={
+            geometry_col: "_exact_geometry",
+        }
+    )
+
+    joined = source_records.merge(
+        exact_lookup,
+        on=[
+            group_col,
+            feature_col,
+        ],
+        how="left",
+        validate="many_to_one",
+        indicator="_exact_geometry_merge",
+    )
+
+    joined[assignment_col] = pd.NA
+    joined[donor_feature_col] = pd.NA
+
+    exact_mask = (
+        joined["_exact_geometry"]
+        .notna()
+    )
+
+    joined.loc[
+        exact_mask,
+        assignment_col,
+    ] = "exact_feature_geometry"
+
+    joined.loc[
+        exact_mask,
+        donor_feature_col,
+    ] = joined.loc[
+        exact_mask,
+        feature_col,
+    ]
+
+    # Build a stable group-level donor table.
+    #
+    # Use the supplied donor columns when available.
+    # Otherwise sort by feature identifier.
+    if donor_sort_cols is None:
+        donor_sort_cols = [
+            feature_col,
+        ]
+
+    actual_sort_cols = [
+        col
+        for col in donor_sort_cols
+        if col in lookup.columns
+    ]
+
+    if feature_col not in actual_sort_cols:
+        actual_sort_cols.append(
+            feature_col
+        )
+
+    donor_lookup = (
+        lookup
+        .sort_values(
+            by=[
+                group_col,
+                *actual_sort_cols,
+            ],
+            kind="stable",
+            na_position="last",
+        )
+        .drop_duplicates(
+            subset=[group_col],
+            keep="first",
+        )
+        [
+            [
+                group_col,
+                feature_col,
+                geometry_col,
+            ]
+        ]
+        .rename(
+            columns={
+                feature_col: (
+                    "_fallback_donor_feature"
+                ),
+                geometry_col: (
+                    "_fallback_geometry"
+                ),
+            }
+        )
+    )
+
+    joined = joined.merge(
+        donor_lookup,
+        on=group_col,
+        how="left",
+        validate="many_to_one",
+    )
+
+    fallback_mask = (
+        joined["_exact_geometry"].isna()
+        & joined["_fallback_geometry"].notna()
+    )
+
+    joined.loc[
+        fallback_mask,
+        assignment_col,
+    ] = "group_first_geometry_fallback"
+
+    joined.loc[
+        fallback_mask,
+        donor_feature_col,
+    ] = joined.loc[
+        fallback_mask,
+        "_fallback_donor_feature",
+    ]
+
+    # Exact geometry takes precedence over fallback geometry.
+    joined[geometry_col] = (
+        joined["_exact_geometry"]
+        .where(
+            joined["_exact_geometry"].notna(),
+            joined["_fallback_geometry"],
+        )
+    )
+
+    unresolved_mask = (
+        joined[geometry_col].isna()
+    )
+
+    joined.loc[
+        unresolved_mask,
+        assignment_col,
+    ] = "unresolved_no_group_geometry"
+
+    assigned = joined.loc[
+        ~unresolved_mask
+    ].copy()
+
+    unresolved = joined.loc[
+        unresolved_mask
+    ].copy()
+
+    temporary_cols = [
+        "_exact_geometry",
+        "_fallback_geometry",
+        "_fallback_donor_feature",
+        "_exact_geometry_merge",
+    ]
+
+    assigned = assigned.drop(
+        columns=temporary_cols,
+        errors="ignore",
+    )
+
+    unresolved = unresolved.drop(
+        columns=temporary_cols,
+        errors="ignore",
+    )
+
+    assigned = gpd.GeoDataFrame(
+        assigned,
+        geometry=geometry_col,
+        crs=geometry_lookup.crs,
+    )
+
+    unresolved = gpd.GeoDataFrame(
+        unresolved,
+        geometry=geometry_col,
+        crs=geometry_lookup.crs,
+    )
+
+    return assigned, unresolved
+   
 def prepare_watersheds(
     watersheds: gpd.GeoDataFrame,
     *,
