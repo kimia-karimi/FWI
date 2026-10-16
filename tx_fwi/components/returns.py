@@ -789,29 +789,29 @@ class ReturnComponent:
         # Load PERM_FEATURE_NMBRs
         # --------------------------------------------------
         
-        #resp = requests.get(
-            #self.return_source.PERM_FEATURE_NMBR_URL,timeout=120,verify=certifi.where(),)
+        resp = requests.get(
+            self.return_source.PERM_FEATURE_NMBR_URL,timeout=120,verify=certifi.where(),)
 
-        #resp.raise_for_status()
+        resp.raise_for_status()
 
-        #geojson = resp.json()
+        geojson = resp.json()
         
 
-        #PERM_FEATURE_NMBRs = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
-        #print("PERM_FEATURE_NMBRs rows:", len(PERM_FEATURE_NMBRs))
-        #print(PERM_FEATURE_NMBRs.columns.tolist())
-       # PERM_FEATURE_NMBRs["PERMIT_NUM"] = self._normalize_npdes(
-            #PERM_FEATURE_NMBRs["NPDES_NUM"]
-        #)
-        #PERM_FEATURE_NMBRs["PERM_FEATURE_NMBR"] = self._normalize_outfall(PERM_FEATURE_NMBRs["OUTFALL"])
-        #print("PERM_FEATURE_NMBRs rows before dropna:", len(PERM_FEATURE_NMBRs))
-        #PERM_FEATURE_NMBRs = PERM_FEATURE_NMBRs.dropna(
-            #subset=[
-                #"PERMIT_NUM",
-               # "PERM_FEATURE_NMBR",
-               # "geometry",
-            #]
-        #)
+        PERM_FEATURE_NMBRs = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
+        print("PERM_FEATURE_NMBRs rows:", len(PERM_FEATURE_NMBRs))
+        print(PERM_FEATURE_NMBRs.columns.tolist())
+        PERM_FEATURE_NMBRs["PERMIT_NUM"] = self._normalize_npdes(
+            PERM_FEATURE_NMBRs["NPDES_NUM"]
+        )
+        PERM_FEATURE_NMBRs["PERM_FEATURE_NMBR"] = self._normalize_outfall(PERM_FEATURE_NMBRs["OUTFALL"])
+        print("PERM_FEATURE_NMBRs rows before dropna:", len(PERM_FEATURE_NMBRs))
+        PERM_FEATURE_NMBRs = PERM_FEATURE_NMBRs.dropna(
+            subset=[
+                "PERMIT_NUM",
+                "PERM_FEATURE_NMBR",
+                "geometry",
+            ]
+        )
         #print("PERM_FEATURE_NMBRs rows after dropna:", len(PERM_FEATURE_NMBRs))
         #print(PERM_FEATURE_NMBRs.columns.tolist())
         #print(PERM_FEATURE_NMBRs[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
@@ -821,22 +821,22 @@ class ReturnComponent:
         # This prevents the old issue:
         # joining permit total to all PERM_FEATURE_NMBRs and multiplying flow.
         # --------------------------------------------------
-        #PERM_FEATURE_NMBRs_feature = (
-            #PERM_FEATURE_NMBRs
-            #.drop_duplicates(
-               # subset=[
-                   # "PERMIT_NUM",
-                   # "PERM_FEATURE_NMBR",
-               # ]
-            #)
-            #[
-               # [
-                   # "PERMIT_NUM",
-                    #"PERM_FEATURE_NMBR",
-                   # "geometry",
-                #]
-           # ]
-      #  )
+        PERM_FEATURE_NMBRs_feature = (
+            PERM_FEATURE_NMBRs
+            .drop_duplicates(
+                subset=[
+                    "PERMIT_NUM",
+                    "PERM_FEATURE_NMBR",
+                ]
+            )
+            [
+                [
+                    "PERMIT_NUM",
+                    "PERM_FEATURE_NMBR",
+                    "geometry",
+                ]
+            ]
+        )
  
 
         # --------------------------------------------------
