@@ -692,13 +692,13 @@ class ReturnComponent:
             ],
             keep=False,
         )
-        #if duplicate_selected.any():
-           # raise AssertionError(
-                #"Selected DMR data contains duplicate permit/feature/period rows:\n"
-                #+ feature_monthly.loc[duplicate_selected]
-               # .head(50)
-               # .to_string(index=False)
-            #)
+        if duplicate_selected.any():
+            raise AssertionError(
+                "Selected DMR data contains duplicate permit/feature/period rows:\n"
+                + feature_monthly.loc[duplicate_selected]
+                .head(50)
+                .to_string(index=False)
+            )
         #dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
         #print("DMR for TX0000027:", pd.DataFrame(dmr_st))
         #print("DMR length after dedup:", len(dmr))
@@ -870,8 +870,8 @@ class ReturnComponent:
         #].drop(columns=["_merge"]).dropna(subset=["geometry"]
         #)
 
-        dmr_geo = dmr_geo[
-            dmr_geo["_merge"].eq("both")].copy()
+        #dmr_geo = dmr_geo[
+            #dmr_geo["_merge"].eq("both")].copy()
 
 
         if dmr_geo.empty:
