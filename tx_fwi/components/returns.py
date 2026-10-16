@@ -932,14 +932,21 @@ class ReturnComponent:
 
         geometry_assigned, geometry_unresolved = (
             fill_missing_geometry_from_group(
-                dmr_geo,
-                watersheds,
-                record_cols=spatial_record_cols,
-                ws_col="WS_ID",
-                estuary_col="Estuary",
-                include_flag_col="HAS_UNGAGE",
-                include_flag_value=1,
-                predicate="intersects",
+                feature_monthly,
+                outfall_geometry,
+                group_col="PERMIT_NUM",
+                feature_col="PERM_FEATURE_NMBR",
+                geometry_col="geometry",
+                donor_sort_cols=[
+                    "OBJECTID",
+                    "PERM_FEATURE_NMBR",
+                ],
+                assignment_col=(
+                    "geometry_assignment_method"
+                ),
+                donor_feature_col=(
+                    "geometry_donor_outfall"
+                ),
             )
         )
 
