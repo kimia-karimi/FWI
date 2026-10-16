@@ -5,11 +5,12 @@ import pandas as pd
 import geopandas as gpd
 import requests
 from tx_fwi.components.base import RunContext
-from tx_fwi.sources.base import registry
+#from tx_fwi.sources.base import registry
 from tx_fwi.transforms.units import mgd_to_afday
 import io
 from tx_fwi.sources.epa_dmr import ReturnFlowSource
 import certifi
+from tx_fwi.transforms.spatial import assign_geometries_to_watersheds, fill_missing_geometry_from_group
 REQUIRED_OUT_COLS = [
     "date",
     "id",
@@ -742,17 +743,39 @@ class ReturnComponent:
         )
 
        
-        perm_feature_nmbrs_feature = (
-            perm_feature_nmbrs
-            .drop_duplicates(
-                subset=["PERMIT_NUM", "PERM_FEATURE_NMBR"],
-                keep="first",
-            )[
-                ["PERMIT_NUM", "PERM_FEATURE_NMBR", "geometry"]
-            ]
-        )
+        #perm_feature_nmbrs_feature = (
+            #perm_feature_nmbrs
+            #.drop_duplicates(
+               # subset=["PERMIT_NUM", "PERM_FEATURE_NMBR"],
+                #keep="first",
+          #  )[
+               # ["PERMIT_NUM", "PERM_FEATURE_NMBR", "geometry"]
+           # ]
+       # )
 
-        
+        outfall_lookup_cols = [
+            "PERMIT_NUM",
+            "PERM_FEATURE_NMBR",
+            "geometry",
+        ]
+
+        for optional_col in [
+            "OBJECTID",
+            "OUTFALL",
+            "LAT_DD",
+            "LONG_DD",
+        ]:
+            if optional_col in perm_feature_nmbrs.columns:
+                outfall_lookup_cols.append(
+                    optional_col
+                )
+
+        outfall_geometry = (
+            perm_feature_nmbrs[
+                outfall_lookup_cols
+            ]
+            .copy()
+        )
         
         # --------------------------------------------------
         # Debug CSV:
@@ -862,6 +885,13 @@ class ReturnComponent:
 
         # --------------------------------------------------
         # Watershed registry
+        # Assign each selected outfall to a watershed.
+        #
+        # One selected DMR value exists for each:
+        # permit + outfall + reporting period.
+        #
+        # If an outfall intersects several watersheds in the
+        # same estuary, the spatial helper retains it once.
         # --------------------------------------------------
         watersheds = (
             self.ctx.registry
@@ -872,124 +902,195 @@ class ReturnComponent:
         watersheds = watersheds.to_crs(
             dmr_geo.crs
         )
-        #calculate only for ungaged watersheds.
-        dmr_geo = gpd.sjoin(
-            dmr_geo,
-            watersheds[watersheds["HAS_UNGAGE"] == 1],
-            how="inner",
-            predicate="intersects",
-        )
-
-        if dmr_geo.empty:
-            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
-
-        spatial_key = [
+       # geometry_assigned, geometry_unresolved = (
+            #fill_missing_geometry_from_group(
+               # feature_monthly,
+                #outfall_geometry,
+                #group_col="PERMIT_NUM",
+               # feature_col="PERM_FEATURE_NMBR",
+                #geometry_col="geometry",
+               # donor_sort_cols=[
+                    #"OBJECTID",
+                   # "PERM_FEATURE_NMBR",
+              #  ],
+               # assignment_col=(
+                   # "geometry_assignment_method"
+               # ),
+               # donor_feature_col=(
+                   # "geometry_donor_outfall"
+                #),
+            #)
+        #)
+        
+    ##    #calculate only for ungaged watersheds.
+        spatial_record_cols = [
             "EXTERNAL_PERMIT_NMBR",
+            "PERMIT_NUM",
             "PERM_FEATURE_NMBR",
             "MONITORING_PERIOD_END_DATE",
         ]
-        multi_ws = dmr_geo.groupby(spatial_key)["WS_ID"].nunique()
-        multi_ws = multi_ws[multi_ws > 1]
-        if not multi_ws.empty:
-            raise ValueError(
-                "Selected outfalls intersect multiple ungaged watersheds:\n"
-                + multi_ws.head(50).to_string()
+
+        geometry_assigned, geometry_unresolved = (
+            fill_missing_geometry_from_group(
+                dmr_geo,
+                watersheds,
+                record_cols=spatial_record_cols,
+                ws_col="WS_ID",
+                estuary_col="Estuary",
+                include_flag_col="HAS_UNGAGE",
+                include_flag_value=1,
+                predicate="intersects",
             )
+        )
+
+        if WRITE_DEBUG_FILES:
+            geometry_assigned.to_csv(
+                "return_dmr_spatial_assignment_audit.csv",
+                index=False,
+            )
+
+            geometry_unresolved.to_csv(
+                "return_dmr_spatial_unresolved.csv",
+                index=False,
+            )
+
+        #if not geometry_unresolved.empty:
+           # print(
+               # "[ReturnFlow] Selected outfall-period "
+               # "rows without any permit geometry: "
+               # f"{len(geometry_unresolved)}"
+            #)
+
+            
+
+       # if assigned_outfalls.empty:
+           # print(
+               # "[ReturnFlow] No selected outfalls "
+               # "were assigned to ungaged watersheds."
+           # )
+
+            #return pd.DataFrame(
+               # columns=REQUIRED_OUT_COLS
+          #  )
+        if not geometry_unresolved.empty:
+            print(
+                "[ReturnFlow] Selected outfall-period "
+                "rows without any permit geometry: "
+                f"{len(geometry_unresolved)}"
+            )
+
+        if geometry_assigned.empty:
+            print(
+                "[ReturnFlow] No selected records "
+                "have exact or permit-fallback geometry."
+            )
+
+            return pd.DataFrame(
+                columns=REQUIRED_OUT_COLS
+            )
+
+        dmr_points = gpd.GeoDataFrame(
+            geometry_assigned,
+            geometry="geometry",
+            crs=outfall_geometry.crs,
+        )
+
+        dmr_geo = assigned_outfalls.copy()
         # --------------------------------------------------
         # Build a permit to watershed fallback table (Determine whether all matched features for a permit fall in one watershed)
         # --------------------------------------------
 
-        permit_ws_summary = (
-            dmr_geo
-            .dropna(subset=["WS_ID"])
-            .groupby(
-                "PERMIT_NUM",
-                as_index=False
-            )
-            .agg(
-                n_mapped_watersheds=(
-                    "WS_ID",
-                    "nunique",
-                ),
-                fallback_WS_ID=(
-                    "WS_ID",
-                    "first",
-                ),
-                fallback_Estuary=(
-                    "Estuary",
-                    "first",
-                ),
-            )
-        )
+        #permit_ws_summary = (
+            #dmr_geo
+            #.dropna(subset=["WS_ID"])
+            #.groupby(
+                #"PERMIT_NUM",
+               # as_index=False
+           # )
+            #.agg(
+               # n_mapped_watersheds=(
+                    #"WS_ID",
+                    #"nunique",
+               # ),
+               # fallback_WS_ID=(
+                   # "WS_ID",
+                    #"first",
+                #),
+                #fallback_Estuary=(
+                   # "Estuary",
+                    #"first",
+               # ),
+           # )
+       # )
     #Only permits with one mapped watershed are eligible:
-        permit_ws_fallback = permit_ws_summary[
-            permit_ws_summary[
-                "n_mapped_watersheds"
-            ].eq(1)
-        ].copy()
+       # permit_ws_fallback = permit_ws_summary[
+           # permit_ws_summary[
+               # "n_mapped_watersheds"
+           # ].eq(1)
+      #  ].copy()
     #Apply the fallback to unmatched features
     #unmatched = dmr_geo[
         #dmr_geo["_merge"].eq("left_only")
     #].copy()
 
-        missing_geo = missing_geo.merge(
-            permit_ws_fallback,
-            on="PERMIT_NUM",
-            how="left",
-            validate="many_to_one",
-        )
+       # missing_geo = missing_geo.merge(
+           # permit_ws_fallback,
+            #on="PERMIT_NUM",
+            #how="left",
+            #validate="many_to_one",
+       # )
 
-        fallback_mask = missing_geo[
-            "fallback_WS_ID"
-        ].notna()
+        #fallback_mask = missing_geo[
+            #"fallback_WS_ID"
+       # ].notna()
 
-        missing_geo.loc[
-            fallback_mask,
-            "WS_ID",
-        ] = missing_geo.loc[
-            fallback_mask,
-            "fallback_WS_ID",
-        ]
+        #missing_geo.loc[
+            #fallback_mask,
+            #"WS_ID",
+       # ] = missing_geo.loc[
+          #  fallback_mask,
+            #"fallback_WS_ID",
+       # ]
 
-        missing_geo.loc[
-            fallback_mask,
-            "Estuary",
-        ] = missing_geo.loc[
-            fallback_mask,
-            "fallback_Estuary",
-         ]   
+        #missing_geo.loc[
+            #fallback_mask,
+            #"Estuary",
+      # ] = missing_geo.loc[
+           # fallback_mask,
+            #"fallback_Estuary",
+        # ]   
 
-        missing_geo.loc[
-            fallback_mask,
-            "geometry_assignment_method",
-        ] = "permit_same_watershed_fallback"
+       # missing_geo.loc[
+            #fallback_mask,
+            #"geometry_assignment_method",
+       # ] = "permit_same_watershed_fallback"
     #Keep unresolved records visible
-        missing_geo.loc[
-            ~fallback_mask,
-            "geometry_assignment_method",
-        ] = "unresolved_missing_geometry"
+      #  missing_geo.loc[
+           # ~fallback_mask,
+          #  "geometry_assignment_method",
+        #] = "unresolved_missing_geometry"
 
-        unresolved = missing_geo[
-            ~fallback_mask
-        ].copy()
+       # unresolved = missing_geo[
+           # ~fallback_mask
+       # ].copy()
 
-        unresolved.to_csv(
-            "return_dmr_unresolved_geometry.csv",
-            index=False,
-        )
+       # unresolved.to_csv(
+            #"return_dmr_unresolved_geometry.csv",
+           # index=False,
+        #)
     #Combine exact and fallback assignments
-        fallback_assigned = missing_geo[
-            fallback_mask
-        ].copy()
+        #fallback_assigned = missing_geo[
+          #  fallback_mask
+        #].copy()
 
-        dmr_geo = pd.concat( #this or assigned to use for the date fields
-            [
-                dmr_geo,
-                fallback_assigned,
-             ],
-            ignore_index=True,
-            sort=False,
-        )
+       # dmr_geo = pd.concat( #this or assigned to use for the date fields
+          #  [
+                #dmr_geo,
+               # fallback_assigned,
+             #],
+          #  ignore_index=True,
+           # sort=False,
+        #)
         # --------------------------------------------------
         # Date fields
         # --------------------------------------------------
