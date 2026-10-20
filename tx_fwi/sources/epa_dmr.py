@@ -92,16 +92,16 @@ class ReturnFlowSource:
 
         return pd.concat(frames, ignore_index=True)
     def load_perm_feature_nmbrs(
-    self,
-    *,
-    batch_size: int = 2000,
-    ) -> gpd.GeoDataFrame:
-    """
-    Load every TCEQ wastewater outfall feature.
+        self,
+        *,
+        batch_size: int = 2000,
+        ) -> gpd.GeoDataFrame:
+        """
+        Load every TCEQ wastewater outfall feature.
 
-    ArcGIS services commonly limit one response to 2,000 records,
-    so features must be requested in pages.
-    """
+        ArcGIS services commonly limit one response to 2,000 records,
+        so features must be requested in pages.
+        """
         query_url = self.PERM_FEATURE_NMBR_URL.split("?")[0]
 
         count_response = requests.get(
