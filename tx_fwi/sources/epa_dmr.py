@@ -114,7 +114,7 @@ class ReturnFlowSource:
         timeout=120,
         verify=certifi.where(),
         )
-       count_response.raise_for_status()
+        count_response.raise_for_status()
 
         count_payload = count_response.json()
         expected_count = int(
