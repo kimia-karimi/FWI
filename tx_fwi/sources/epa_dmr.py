@@ -28,7 +28,7 @@ class ReturnFlowSource:
 
     PERM_FEATURE_NMBR_URL = (
       "https://gisweb.tceq.texas.gov/arcgis/rest/services/"
-      "Public/WW_outfalls/MapServer/0/query"
+      "Public/WW_oufalls/MapServer/0/query"
       "?outFields=*"
       "&where=1%3D1"
       "&f=geojson"
@@ -91,21 +91,121 @@ class ReturnFlowSource:
             return pd.DataFrame()
 
         return pd.concat(frames, ignore_index=True)
-    def load_perm_feature_nmbrs(self):
-        response = requests.get(
-            self.PERM_FEATURE_NMBR_URL,
-            timeout=120,
-            verify=certifi.where(),
+    def load_perm_feature_nmbrs(
+        self,
+        *,
+        batch_size: int = 2000,
+        ) -> gpd.GeoDataFrame:
+        """
+        Load every TCEQ wastewater outfall feature.
+
+        ArcGIS services commonly limit one response to 2,000 records,
+        so features must be requested in pages.
+        """
+        query_url = self.PERM_FEATURE_NMBR_URL.split("?")[0]
+
+        count_response = requests.get(
+        query_url,
+        params={
+            "where": "1=1",
+            "returnCountOnly": "true",
+            "f": "json",
+        },
+        timeout=120,
+        verify=certifi.where(),
+        )
+        count_response.raise_for_status()
+
+        count_payload = count_response.json()
+        expected_count = int(
+        count_payload.get("count", 0)
         )
 
-        response.raise_for_status()
+        features = []
+        offset = 0
 
-        geojson = response.json()
+        while True:
+            response = requests.get(
+                query_url,
+                params={
+                "where": "1=1",
+                "outFields": "*",
+                "returnGeometry": "true",
+                "outSR": "4326",
+                "f": "geojson",
+                "resultOffset": offset,
+                "resultRecordCount": batch_size,
+                "orderByFields": "OBJECTID",
+                },
+                timeout=120,
+                verify=certifi.where(),
+            )
+            response.raise_for_status()
 
-        return gpd.GeoDataFrame.from_features(
-            geojson["features"],
+            payload = response.json()
+            batch = payload.get("features", [])
+
+            if not batch:
+                break
+
+            features.extend(batch)
+
+            print(
+            "[ReturnFlowSource] Loaded TCEQ outfalls: "
+            f"{len(features)} / {expected_count}"
+            )
+
+            offset += len(batch)
+
+            if len(batch) < batch_size:
+                break
+
+            if (
+                expected_count
+                and len(features) >= expected_count
+            ):
+                break
+
+        if not features:
+            return gpd.GeoDataFrame(
+                geometry=[],
+                crs="EPSG:4326",
+            )
+
+        result = gpd.GeoDataFrame.from_features(
+            features,
             crs="EPSG:4326",
         )
+
+        if expected_count and len(result) < expected_count:
+            raise RuntimeError(
+                "TCEQ wastewater outfall retrieval was incomplete. "
+                f"Expected {expected_count} features but received "
+                f"{len(result)}."
+            )
+
+        if "OBJECTID" in result.columns:
+            duplicate_objectids = result[
+                "OBJECTID"
+            ].duplicated(keep=False)
+
+            if duplicate_objectids.any():
+                raise ValueError(
+                    "TCEQ wastewater outfall pagination returned "
+                    "duplicate OBJECTID values:\n"
+                    + result.loc[
+                        duplicate_objectids,
+                        [
+                        "OBJECTID",
+                        "NPDES_NUM",
+                        "OUTFALL",
+                        ],
+                    ]
+                    .head(50)
+                    .to_string(index=False)
+                )
+
+        return result
 
     def fetch(self, start_fy, end_fy):
         return {
@@ -382,9 +482,37 @@ class ReturnFlowSource:
             dmr_geo.crs
         )
 
+        watersheds_ungaged = (
+            watersheds.loc[
+                watersheds["HAS_UNGAGE"].eq(1)
+            ]
+            .copy()
+        )
+
+        # Collapse multiple geometry rows belonging
+        # to the same watershed identifier.
+        watersheds_ungaged = (
+            watersheds_ungaged
+            .dissolve(
+                by=[
+                    "WS_ID",
+                    "Estuary",
+                    "HAS_UNGAGE",
+                ],
+                as_index=False,
+            )
+        )
+
+        within_join = gpd.sjoin(
+            dmr_geo,
+            watersheds_ungaged,
+            how="left",
+            predicate="within",
+        )
+
         dmr_geo = gpd.sjoin(
             dmr_geo,
-            watersheds,
+            watersheds_ungaged,
             how="inner",
             predicate="intersects",
         )
