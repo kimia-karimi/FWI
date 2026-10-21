@@ -1,324 +1,103 @@
-# Modular Freshwater Inflow Automation (FWI)
+# Modular Freshwater Inflow Automation
 
-## Overview
+The `tx_fwi` package assembles daily freshwater-inflow and freshwater-balance components for Texas coastal estuaries. It separates external data retrieval, hydrologic processing, spatial attribution, registry metadata, and storage so each component can be updated and audited independently.
 
-The Modular Freshwater Inflow Automation (FWI) platform generates freshwater inflow datasets for Texas estuaries using a component-based architecture.
+## Workflow coverage
 
-The system retrieves source data from multiple providers, standardizes records into a common schema, assigns flows to watersheds, performs QA/QC checks, and produces daily inflow datasets that can be used for reporting, dashboards, Snowflake integration, and other downstream products.
+| Component | Primary input | Output role |
+|---|---|---|
+| Local gaged flow | USGS, IBWC, Lake Houston, Lake Texana/LNRA, Colorado adjustments | `direct` or `adjusted` |
+| Upstream/system gaged flow | Upstream USGS or IBWC definitions | `system_counted` |
+| TxRR / model flow | TxRR or HEC-HMS2D output | `direct` |
+| Diversions | TCEQ water-right records and diversion points | `removal` |
+| Return flow | EPA DMR records and TCEQ wastewater outfalls | `return` |
+| Precipitation | WDFT watercycle precipitation by quad | `addition` |
+| Evaporation | WDFT watercycle gross evaporation by quad | `loss` |
 
-The platform is designed to be:
-
-- Modular
-- Reproducible
-- Auditable
-- Registry-driven
-- Incremental
-- Easy to maintain
-
----
-
-# Repository Structure
+## Processing model
 
 ```text
-tx_fwi/
-│
-├── components/
-│   ├── base.py
-│   ├── gaged.py
-│   ├── gaged_upstream.py
-│   ├── diversion.py
-│   ├── returns.py
-│   ├── ungaged.py
-│   └── evap_precip.py
-│
-├── sources/
-│   ├── base.py
-│   ├── usgs.py
-│   ├── epa_dmr.py
-│   ├── tceq_wr.py
-│   ├── colorado.py
-│   ├── lnra.py
-│   ├── ibwc.py
-│   ├── models.py
-│   └── usgs_utils.py
-│
-├── transforms/
-│   ├── spatial.py
-│   ├── temporal.py
-│   ├── pcp_conversion.py
-│   └── units.py
-│
-├── registry/
-│   ├── watersheds
-│   ├── registry.py
-│   ├── upstream network definitions
-│   └── metadata registries
-│
-├── pipelines/
-│   ├── runner.py
-│   ├── run_update.py
-│   ├── wdft_watercycle.py
-│   ├── calculate_monthly_bay_flow.py
-│   └── precip_runner.py
-│
-├── tools/
-│   ├── update_txrr_in_files.py
-│   └── timeseries_generator.py
-│
-├── config/
-│   └── config.py
-├── storage.py
-│
-└── data/
-    ├── watersheds/
-    └── supporting reference data
+Sources -> Components -> Shared transforms -> Spatial attribution
+        -> QA/QC -> Canonical daily timeseries -> Monthly/bay products
 ```
 
----
-
-# Component Architecture
-
-A component represents a freshwater inflow process.
-
-Examples:
-
-| Component | Purpose |
-|------------|------------|
-| gaged | USGS streamflow, IBWC streamflow, Special gages (Lake Texana, Lake Houston, Colorado River), Upstream streamflow |
-| diversion | Water right diversions |
-| returns | Wastewater return flows |
-| ungaged | model-generated ungaged flows |
-| evap_precip | Bay precipitation and evaporation |
-
-All components produce the same output schema.
+All component outputs use the canonical schema:
 
 ```text
-date
-id
-id_type
-estuary
-component
-source
-value_afday
-flow_role
-count_in_basin_sum
-note
+date, id, id_type, estuary, component, source,
+value_afday, flow_role, count_in_basin_sum, note
 ```
 
----
+Some deployments may also include operational fields such as `data_as_of`.
 
-# Source Architecture
-
-Sources retrieve raw data from external systems.
-
-Examples:
-
-| Source | Provider |
-|----------|----------|
-| usgs.py | USGS NWIS |
-| tceq_wr.py | TCEQ Water Rights |
-| epa_dmr.py | EPA DMR |
-| wdft_watercycle.py | WDFT |
-| models.py | Hydrologic models |
-| lnra.py | Lake Texana |
-| lake_houston.py | Lake Houston |
-| colorado.py | Colorado adjustment |
-
-Sources should only retrieve records.
-
-Business logic belongs in the component.
-
----
-
-# Environment Setup
-
-## Create Environment
+## Setup
 
 ```bash
 conda env create -f environment.yml
+conda activate fwi
 ```
 
-or
+To update an existing environment:
 
 ```bash
 conda env update -f environment.yml
 ```
 
-Activate:
+Review `tx_fwi/config/config.py` and registry inputs before running. Confirm source paths, output paths, credentials, watershed data, upstream-gage definitions, and quad crosswalks.
+
+## Running the pipeline
+
+Run enabled components:
 
 ```bash
-conda activate fwi
+python -m tx_fwi.pipelines.runner
 ```
 
----
-
-# Required Python Packages
-
-Typical dependencies include:
-
-```text
-pandas
-geopandas
-numpy
-shapely
-pyproj
-requests
-fiona
-pyarrow
-openpyxl
-certifi
-```
-
-The authoritative dependency list is maintained in:
-
-```text
-environment.yml
-```
-
----
-
-# Configuration
-
-Review configuration settings before running:
-
-```text
-tx_fwi/config/config.py
-```
-
-Verify:
-
-- Local paths
-- Network paths
-- Registry locations
-- Output locations
-- Data directories
-
----
-
-# Running the Workflow
-
-Run all enabled components:
+Run a date range:
 
 ```bash
-python -m tx_fwi.runner
+python -m tx_fwi.pipelines.runner --start 2024-01-01 --end 2024-12-31
 ```
 
-Run a specific date range:
+Component watermarks support incremental processing where implemented. Historical rebuilds should be used when source corrections, watershed boundaries, attribution rules, or component methodology change.
 
-```bash
-python -m tx_fwi.runner \
-    --start 2024-01-01 \
-    --end 2024-12-31
-```
+## Automatic workflow and frequency
 
-Incremental processing uses component watermarks when supported.
+The production scheduler should call the pipeline entry point, capture logs, preserve QA/QC outputs, and fail the run when required sources or validation checks fail.
 
----
+| Activity | Recommended trigger or frequency | User interaction |
+|---|---|---|
+| Incremental component update | Scheduled after source data are expected to be available | Review failures and unresolved records |
+| Precipitation and evaporation update | After a new WDFT watercycle file is available | Verify the file period, quad coverage, and units |
+| TxRR/model update | After approved model output is delivered | Confirm model version, simulation period, watershed identifiers, and replacement scope |
+| Monthly/bay aggregation | After component updates complete successfully | Review monthly completeness and comparison reports |
+| Historical rebuild | On approved methodology, registry, or source correction | Document the reason, date range, reviewer, and acceptance decision |
 
-# Data Flow
+The exact schedule is deployment-specific. Record the configured schedule here once the production scheduler is finalized:
 
-```text
-Source
-   ↓
+- **Incremental pipeline:** `[configured schedule]`
+- **Precipitation/evaporation ingestion:** `[configured schedule or source-driven trigger]`
+- **TxRR/model ingestion:** `[configured schedule or approval-driven trigger]`
+- **Monthly product generation:** `[configured schedule]`
 
-Component
-   ↓
+## User interaction points
 
-Transforms
-   ↓
+Human review is expected at controlled boundaries rather than inside routine transformations:
 
-Watershed Attribution
-   ↓
+1. **Configuration:** maintain paths, credentials, enabled components, and output settings.
+2. **Registry maintenance:** approve watershed, estuary, upstream-gage, station, and quad-crosswalk changes.
+3. **Source intake:** confirm precipitation files and TxRR/model deliveries are complete and authoritative.
+4. **Spatial exceptions:** review unmatched points, overlapping watershed candidates, cross-estuary conflicts, and approved overrides.
+5. **QA/QC:** inspect missing periods, duplicate records, unit conversions, volume conservation, and changes from the previous approved run.
+6. **Release:** approve historical replacements and publication of downstream products.
 
-QA/QC
-   ↓
+## Design rules
 
-Daily Component Dataset
-   ↓
+- External API, download, and parsing logic belongs in `tx_fwi/sources`.
+- Component orchestration belongs in `tx_fwi/components`.
+- Shared unit, temporal, and spatial logic belongs in `tx_fwi/transforms`.
+- Watershed, estuary, upstream-gage, station, and quad relationships belong in the registry.
+- Components should return the canonical schema and avoid hardcoded reference-data paths.
+- Intermediate files should be limited to intentional QA/QC or approved exports.
+- System/upstream gages are counted once at the system or estuary level, not repeated across downstream watersheds.
 
-Monthly Aggregations
-   ↓
-
-Products
-```
-
----
-
-# Registry-Driven Design
-
-Relationship definitions are stored in registry files rather than hardcoded throughout the codebase.
-
-Examples:
-
-- Watershed boundaries
-- Upstream gage relationships
-- Station mappings
-- Estuary mappings
-- Attribution rules
-
-Updating registries is preferred over modifying component code whenever possible.
-
----
-
-# Adding a New Component
-
-1. Create a new component:
-
-```text
-tx_fwi/components/
-```
-
-2. Create or reuse a source adapter:
-
-```text
-tx_fwi/sources/
-```
-
-3. Convert outputs to the standard FWI schema.
-
-4. Register the component within the runner.
-
-5. Verify QA/QC results.
-
----
-
-# QA/QC Outputs
-
-The workflow generates debugging outputs where necessary, such as:
-
-```text
-join diagnostics
-monthly summaries
-watershed assignment checks
-```
-
-Review these outputs when validating new code or source updates.
-
----
-
-# Common Maintenance Tasks
-
-## Update Watershed Registry
-
-Update metadata in:
-
-```text
-registry/
-```
-
-Re-run validation.
-
----
-
-## Rebuild Historical Data
-
-Use only when:
-
-- Source corrections occur
-- Attribution rules change
-- Watershed definitions change
-- Component logic changes
-
-Full rebuilds should be documented and validated before replacing official outputs.
-
----
