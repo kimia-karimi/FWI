@@ -17,15 +17,13 @@ The `tx_fwi` package assembles daily freshwater-inflow and freshwater-balance co
 ## Processing model
 
 ```text
-Sources -> Components -> Shared transforms -> Spatial attribution
-        -> QA/QC -> Canonical daily timeseries -> Monthly/bay products
+Sources -> Components -> Shared transforms -> Spatial attribution -> QA/QC -> Canonical daily timeseries -> Monthly/bay products
 ```
 
 All component outputs use the canonical schema:
 
 ```text
-date, id, id_type, estuary, component, source,
-value_afday, flow_role, count_in_basin_sum, data_as_of, note
+date, id, id_type, estuary, component, source, value_afday, flow_role, count_in_basin_sum, data_as_of, note
 ```
 
 ## Setup
