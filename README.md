@@ -25,10 +25,8 @@ All component outputs use the canonical schema:
 
 ```text
 date, id, id_type, estuary, component, source,
-value_afday, flow_role, count_in_basin_sum, note
+value_afday, flow_role, count_in_basin_sum, data_as_of, note
 ```
-
-Some deployments may also include operational fields such as `data_as_of`.
 
 ## Setup
 
@@ -75,10 +73,9 @@ The production scheduler should call the pipeline entry point, capture logs, pre
 
 The exact schedule is deployment-specific. Record the configured schedule here once the production scheduler is finalized:
 
-- **Incremental pipeline:** `[configured schedule]`
-- **Precipitation/evaporation ingestion:** `[configured schedule or source-driven trigger]`
-- **TxRR/model ingestion:** `[configured schedule or approval-driven trigger]`
-- **Monthly product generation:** `[configured schedule]`
+- **Precipitation/model ingestion:** `[Monthly scheduled task on sw-lnx-18947]`
+- **Incremental pipeline:** `[Monthly scheduled task, except for diversion and return]`
+- **Precipitation/evaporation ingestion:** `[Annual quad data from WDfT]`
 
 ## User interaction points
 
