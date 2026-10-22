@@ -32,6 +32,81 @@ DEDUP_COLS = [
 ]
 
 
+import hashlib
+
+from tx_fwi.qaqc.models import AppendResult
+
+
+def stable_frame_hash(df: pd.DataFrame, *, sort_cols: list[str]) -> str:
+    if df.empty:
+        return hashlib.sha256(b"").hexdigest()
+    ordered = df.sort_values(sort_cols, kind="stable").reset_index(drop=True)
+    row_hashes = pd.util.hash_pandas_object(ordered, index=False).values.tobytes()
+    return hashlib.sha256(row_hashes).hexdigest()
+
+
+class CheckedAppendMixin:
+    """Mix into the existing Storage class or copy append_checked into it."""
+
+    def append_checked(
+        self,
+        df: pd.DataFrame,
+        *,
+        component: str,
+        run_start,
+        run_end,
+        prior_watermark,
+    ) -> AppendResult:
+        prepared = df.copy()
+        prepared["date"] = pd.to_datetime(prepared["date"], errors="coerce").dt.normalize()
+        key_cols = ["date", "id", "id_type", "component", "source", "flow_role"]
+
+        if prepared[key_cols].isna().any().any():
+            return AppendResult("blocked", len(prepared), 0, _date_text(prior_watermark), _date_text(prior_watermark), None, None, "Prepared append contains null key fields.")
+        if prepared.duplicated(subset=key_cols, keep=False).any():
+            return AppendResult("blocked", len(prepared), 0, _date_text(prior_watermark), _date_text(prior_watermark), None, None, "Prepared append contains duplicate output keys.")
+
+        existing = self.read_component(component)
+        before_history = _history_through(existing, prior_watermark)
+        before_hash = stable_frame_hash(before_history, sort_cols=key_cols)
+
+        if prior_watermark is not None and (prepared["date"] <= pd.Timestamp(prior_watermark)).any():
+            return AppendResult("blocked", len(prepared), 0, _date_text(prior_watermark), _date_text(prior_watermark), before_hash, before_hash, "Routine append overlaps approved historical dates.")
+
+        appended_rows = self.append(prepared, run_start=run_start, run_end=run_end)
+        stored_after = self.read_component(component)
+        after_history = _history_through(stored_after, prior_watermark)
+        after_hash = stable_frame_hash(after_history, sort_cols=key_cols)
+
+        if before_hash != after_hash:
+            raise RuntimeError("Approved historical records changed during routine append.")
+        if appended_rows != len(prepared):
+            raise RuntimeError("Stored append count does not match prepared record count.")
+
+        resulting_watermark = prepared["date"].max()
+        self.set_watermark(component, resulting_watermark)
+        return AppendResult(
+            status="success",
+            prepared_rows=len(prepared),
+            appended_rows=appended_rows,
+            prior_watermark=_date_text(prior_watermark),
+            resulting_watermark=_date_text(resulting_watermark),
+            historical_hash_before=before_hash,
+            historical_hash_after=after_hash,
+            message="Append completed without changing approved history.",
+        )
+
+
+def _history_through(df: pd.DataFrame, watermark) -> pd.DataFrame:
+    if watermark is None or df.empty:
+        return df.iloc[0:0].copy()
+    dates = pd.to_datetime(df["date"], errors="coerce").dt.normalize()
+    return df.loc[dates <= pd.Timestamp(watermark).normalize()].copy()
+
+
+def _date_text(value) -> str | None:
+    return str(pd.Timestamp(value).date()) if value is not None else None
+
 @dataclass
 class Storage:
     """
@@ -248,3 +323,5 @@ class Storage:
         df.to_parquet(self.master_path, index=False)
 
         return len(df_new)
+
+    
