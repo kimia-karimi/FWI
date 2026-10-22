@@ -255,7 +255,8 @@ class ReturnFlowSource:
         *,
         offset: int,
         batch_size: int,
-    ) -> list"""
+        ) -> list
+        """
         Retrieve one ordered page from the ArcGIS outfall layer.
         """
         response = requests.get(
