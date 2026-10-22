@@ -1,133 +1,266 @@
-# components/return.py
+# tx_fwi/sources/epa_dmr.py
 from __future__ import annotations
-from tx_fwi.transforms.temporal import expand_monthly_to_daily
-import pandas as pd
-import geopandas as gpd
-import requests
-from tx_fwi.components.base import RunContext
-from tx_fwi.sources.base import registry
-from tx_fwi.transforms.units import mgd_to_afday
+
 import io
 import zipfile
+
 import certifi
+import geopandas as gpd
+import pandas as pd
+import requests
 
+from tx_fwi.components.base import RunContext
 
-def fiscal_year(dt):
-    dt = pd.Timestamp(dt)
-    return dt.year + 1 if dt.month >= 10 else dt.year
 
 class ReturnFlowSource:
+    """
+    Retrieve and parse source data used by ReturnComponent.
+
+    This source owns:
+
+    - EPA fiscal-year DMR ZIP downloads
+    - EPA DMR CSV parsing
+    - paginated TCEQ wastewater-outfall retrieval
+    - source-level completeness validation
+
+    Return-flow selection, unit conversion, geometry resolution,
+    watershed assignment, aggregation, storage, and watermarks
+    remain in ReturnComponent.
+    """
 
     name = "epa_dmr"
     STATE = "TX"
 
     BASE_URL = (
-      "https://echo.epa.gov/files/echodownloads/"
-      "NPDES_by_state_year"
+        "https://echo.epa.gov/files/echodownloads/"
+        "NPDES_by_state_year"
     )
 
     PERM_FEATURE_NMBR_URL = (
-      "https://gisweb.tceq.texas.gov/arcgis/rest/services/"
-      "Public/WW_oufalls/MapServer/0/query"
-      "?outFields=*"
-      "&where=1%3D1"
-      "&f=geojson"
-   )
+        "https://gisweb.tceq.texas.gov/"
+        "arcgis/rest/services/"
+        "Public/WW_oufalls/MapServer/0/query"
+    )
 
     def __init__(self, ctx: RunContext):
         self.ctx = ctx
-    
-    # --------------------------------------------------
-    # Download DMR ZIP
-    # --------------------------------------------------
-    def _download_fy_zip(self, fy):
-        
-        fname = f"{self.STATE}_FY{fy}_NPDES_DMRS_LIMITS.zip"
 
-        url = f"{self.BASE_URL}/{fname}"
-        print(url)
+        # Populated by load_perm_feature_nmbrs().
+        self.last_outfall_expected_count: int | None = None
+        self.last_outfall_retrieved_count: int | None = None
 
-        r = requests.get(url, timeout=300, verify=certifi.where(),)
-        #print(fy, r.status_code,r.headers.get("Content-Type"),len(r.content))
-        if r.status_code != 200:
+    # --------------------------------------------------
+    # EPA DMR retrieval
+    # --------------------------------------------------
+    def _download_fy_zip(
+        self,
+        fiscal_year: int,
+    ) -> io.BytesIO | None:
+        """
+        Download one EPA Texas fiscal-year DMR ZIP file.
+
+        Return None when EPA reports that the requested file does
+        not exist. Other HTTP and ZIP errors are raised.
+        """
+        filename = (
+            f"{self.STATE}_FY{fiscal_year}_"
+            "NPDES_DMRS_LIMITS.zip"
+        )
+
+        url = f"{self.BASE_URL}/{filename}"
+
+        print(
+            "[ReturnFlowSource] Downloading EPA DMR: "
+            f"FY{fiscal_year}"
+        )
+
+        response = requests.get(
+            url,
+            timeout=300,
+            verify=certifi.where(),
+        )
+
+        if response.status_code == 404:
+            print(
+                "[ReturnFlowSource] EPA DMR file not found: "
+                f"FY{fiscal_year}"
+            )
             return None
 
-        return io.BytesIO(r.content)
+        response.raise_for_status()
 
-    # --------------------------------------------------
-    # Load all DMRs
-    # --------------------------------------------------
-    def _load_dmr(self,start_fy, end_fy):
+        if not response.content:
+            raise RuntimeError(
+                "EPA returned an empty DMR ZIP response for "
+                f"fiscal year {fiscal_year}."
+            )
 
-        frames = []
+        return io.BytesIO(response.content)
+
+    @staticmethod
+    def _find_dmr_member(
+        archive: zipfile.ZipFile,
+    ) -> str:
+        """
+        Find the DMR CSV member in an EPA fiscal-year ZIP archive.
+        """
+        candidates = [
+            member
+            for member in archive.namelist()
+            if "DMRS" in member.upper()
+            and member.lower().endswith(".csv")
+        ]
+
+        if not candidates:
+            raise RuntimeError(
+                "EPA DMR ZIP does not contain a DMR CSV file. "
+                "Archive members include:\n"
+                + "\n".join(
+                    archive.namelist()[:50]
+                )
+            )
+
+        # Prefer a DMR file that is not obviously a limits-only file.
+        preferred = [
+            member
+            for member in candidates
+            if "LIMIT" not in member.upper()
+        ]
+
+        return (
+            preferred[0]
+            if preferred
+            else candidates[0]
+        )
+
+    def load_dmr(
+        self,
+        start_fy: int,
+        end_fy: int,
+    ) -> pd.DataFrame:
+        """
+        Load EPA DMR records for an inclusive fiscal-year range.
+        """
+        if end_fy < start_fy:
+            raise ValueError(
+                "end_fy cannot be earlier than start_fy."
+            )
+
+        frames: list[pd.DataFrame] = []
 
         for fy in range(start_fy, end_fy + 1):
+            zip_buffer = self._download_fy_zip(fy)
 
-            z = self._download_fy_zip(fy)
-
-            if z is None:
+            if zip_buffer is None:
                 continue
 
-            with zipfile.ZipFile(z) as zipf:
-
-                try:
-                    dmr_name = next(
-                        n
-                        for n in zipf.namelist()
-                        if "DMRS" in n.upper()
+            try:
+                with zipfile.ZipFile(
+                    zip_buffer
+                ) as archive:
+                    dmr_member = self._find_dmr_member(
+                        archive
                     )
 
-                    frames.append(
-                        pd.read_csv(
-                            zipf.open(dmr_name),
-                            low_memory=False,
-                        )
+                    frame = pd.read_csv(
+                        archive.open(dmr_member),
+                        low_memory=False,
                     )
 
-                except StopIteration:
-                    continue
+            except zipfile.BadZipFile as exc:
+                raise RuntimeError(
+                    "EPA returned an invalid ZIP file for "
+                    f"fiscal year {fy}."
+                ) from exc
+
+            frame["_source_fiscal_year"] = fy
+            frame["_source_archive_member"] = (
+                dmr_member
+            )
+
+            frames.append(frame)
+
+            print(
+                "[ReturnFlowSource] Loaded EPA DMR "
+                f"FY{fy}: {len(frame):,} rows"
+            )
 
         if not frames:
             return pd.DataFrame()
 
-        return pd.concat(frames, ignore_index=True)
-    def load_perm_feature_nmbrs(
+        result = pd.concat(
+            frames,
+            ignore_index=True,
+            sort=False,
+        )
+
+        print(
+            "[ReturnFlowSource] EPA DMR rows loaded: "
+            f"{len(result):,}"
+        )
+
+        return result
+
+    # Backward compatibility for the current ReturnComponent.
+    # New code should call load_dmr().
+    def _load_dmr(
+        self,
+        start_fy: int,
+        end_fy: int,
+    ) -> pd.DataFrame:
+        return self.load_dmr(
+            start_fy,
+            end_fy,
+        )
+
+    # --------------------------------------------------
+    # TCEQ wastewater-outfall retrieval
+    # --------------------------------------------------
+    def _get_outfall_count(self) -> int:
+        """
+        Return the total number of records reported by the ArcGIS
+        wastewater-outfall layer.
+        """
+        response = requests.get(
+            self.PERM_FEATURE_NMBR_URL,
+            params={
+                "where": "1=1",
+                "returnCountOnly": "true",
+                "f": "json",
+            },
+            timeout=120,
+            verify=certifi.where(),
+        )
+
+        response.raise_for_status()
+
+        payload = response.json()
+
+        if "error" in payload:
+            raise RuntimeError(
+                "TCEQ outfall count request failed: "
+                f"{payload['error']}"
+            )
+
+        if "count" not in payload:
+            raise RuntimeError(
+                "TCEQ outfall count response does not "
+                "contain a count field."
+            )
+
+        return int(payload["count"])
+
+    def _get_outfall_page(
         self,
         *,
-        batch_size: int = 2000,
-        ) -> gpd.GeoDataFrame:
+        offset: int,
+        batch_size: int,
+    ) -> list"""
+        Retrieve one ordered page from the ArcGIS outfall layer.
         """
-        Load every TCEQ wastewater outfall feature.
-
-        ArcGIS services commonly limit one response to 2,000 records,
-        so features must be requested in pages.
-        """
-        query_url = self.PERM_FEATURE_NMBR_URL.split("?")[0]
-
-        count_response = requests.get(
-        query_url,
-        params={
-            "where": "1=1",
-            "returnCountOnly": "true",
-            "f": "json",
-        },
-        timeout=120,
-        verify=certifi.where(),
-        )
-        count_response.raise_for_status()
-
-        count_payload = count_response.json()
-        expected_count = int(
-        count_payload.get("count", 0)
-        )
-
-        features = []
-        offset = 0
-
-        while True:
-            response = requests.get(
-                query_url,
-                params={
+        response = requests.get(
+            self.PERM_FEATURE_NMBR_URL,
+            params={
                 "where": "1=1",
                 "outFields": "*",
                 "returnGeometry": "true",
@@ -135,539 +268,197 @@ class ReturnFlowSource:
                 "f": "geojson",
                 "resultOffset": offset,
                 "resultRecordCount": batch_size,
-                "orderByFields": "OBJECTID",
-                },
-                timeout=120,
-                verify=certifi.where(),
-            )
-            response.raise_for_status()
+                "orderByFields": "OBJECTID ASC",
+            },
+            timeout=120,
+            verify=certifi.where(),
+        )
 
-            payload = response.json()
-            batch = payload.get("features", [])
+        response.raise_for_status()
+
+        payload = response.json()
+
+        if "error" in payload:
+            raise RuntimeError(
+                "TCEQ outfall page request failed at "
+                f"offset {offset}: {payload['error']}"
+            )
+
+        features = payload.get("features")
+
+        if features is None:
+            raise RuntimeError(
+                "TCEQ outfall response does not contain "
+                f"a features collection at offset {offset}."
+            )
+
+        return features
+
+    def load_perm_feature_nmbrs(
+        self,
+        *,
+        batch_size: int = 2000,
+    ) -> gpd.GeoDataFrame:
+        """
+        Load every TCEQ wastewater-outfall feature.
+
+        The ArcGIS service limits the number of records returned
+        in one request, so this method retrieves ordered pages and
+        verifies that the final feature count matches the count
+        reported by the service.
+        """
+        if batch_size <= 0:
+            raise ValueError(
+                "batch_size must be greater than zero."
+            )
+
+        expected_count = (
+            self._get_outfall_count()
+        )
+
+        self.last_outfall_expected_count = (
+            expected_count
+        )
+
+        print(
+            "[ReturnFlowSource] TCEQ outfalls "
+            f"reported by service: {expected_count:,}"
+        )
+
+        if expected_count == 0:
+            self.last_outfall_retrieved_count = 0
+
+            return gpd.GeoDataFrame(
+                columns=["geometry"],
+                geometry="geometry",
+                crs="EPSG:4326",
+            )
+
+        features: list[dict] = []
+        offset = 0
+
+        while offset < expected_count:
+            batch = self._get_outfall_page(
+                offset=offset,
+                batch_size=batch_size,
+            )
 
             if not batch:
-                break
+                raise RuntimeError(
+                    "TCEQ wastewater-outfall pagination "
+                    "ended before the expected record count. "
+                    f"Offset={offset:,}; "
+                    f"retrieved={len(features):,}; "
+                    f"expected={expected_count:,}."
+                )
 
             features.extend(batch)
+            offset += len(batch)
 
             print(
-            "[ReturnFlowSource] Loaded TCEQ outfalls: "
-            f"{len(features)} / {expected_count}"
+                "[ReturnFlowSource] Loaded TCEQ "
+                f"outfalls: {len(features):,} / "
+                f"{expected_count:,}"
             )
-
-            offset += len(batch)
 
             if len(batch) < batch_size:
                 break
-
-            if (
-                expected_count
-                and len(features) >= expected_count
-            ):
-                break
-
-        if not features:
-            return gpd.GeoDataFrame(
-                geometry=[],
-                crs="EPSG:4326",
-            )
 
         result = gpd.GeoDataFrame.from_features(
             features,
             crs="EPSG:4326",
         )
 
-        if expected_count and len(result) < expected_count:
+        self.last_outfall_retrieved_count = (
+            len(result)
+        )
+
+        if len(result) != expected_count:
             raise RuntimeError(
-                "TCEQ wastewater outfall retrieval was incomplete. "
-                f"Expected {expected_count} features but received "
-                f"{len(result)}."
+                "TCEQ wastewater-outfall retrieval was "
+                "incomplete or returned an unexpected count. "
+                f"Expected {expected_count:,} features but "
+                f"received {len(result):,}."
             )
 
-        if "OBJECTID" in result.columns:
-            duplicate_objectids = result[
-                "OBJECTID"
-            ].duplicated(keep=False)
+        required_cols = [
+            "OBJECTID",
+            "NPDES_NUM",
+            "OUTFALL",
+            "geometry",
+        ]
 
-            if duplicate_objectids.any():
-                raise ValueError(
-                    "TCEQ wastewater outfall pagination returned "
-                    "duplicate OBJECTID values:\n"
-                    + result.loc[
-                        duplicate_objectids,
-                        [
-                        "OBJECTID",
-                        "NPDES_NUM",
-                        "OUTFALL",
-                        ],
-                    ]
-                    .head(50)
-                    .to_string(index=False)
-                )
+        missing_cols = [
+            col
+            for col in required_cols
+            if col not in result.columns
+        ]
+
+        if missing_cols:
+            raise KeyError(
+                "TCEQ wastewater-outfall response is "
+                "missing required fields: "
+                + ", ".join(missing_cols)
+            )
+
+        duplicate_objectids = result[
+            "OBJECTID"
+        ].duplicated(keep=False)
+
+        if duplicate_objectids.any():
+            duplicate_cols = [
+                col
+                for col in [
+                    "OBJECTID",
+                    "NPDES_NUM",
+                    "OUTFALL",
+                    "GIS_NUMBER",
+                ]
+                if col in result.columns
+            ]
+
+            raise ValueError(
+                "TCEQ wastewater-outfall pagination "
+                "returned duplicate OBJECTID values:\n"
+                + result.loc[
+                    duplicate_objectids,
+                    duplicate_cols,
+                ]
+                .sort_values("OBJECTID")
+                .head(50)
+                .to_string(index=False)
+            )
+
+        null_geometry_count = int(
+            result.geometry.isna().sum()
+        )
+
+        print(
+            "[ReturnFlowSource] TCEQ outfall "
+            "retrieval complete: "
+            f"{len(result):,} features; "
+            f"{null_geometry_count:,} without geometry"
+        )
 
         return result
 
-    def fetch(self, start_fy, end_fy):
+    # --------------------------------------------------
+    # Combined source interface
+    # --------------------------------------------------
+    def fetch(
+        self,
+        start_fy: int,
+        end_fy: int,
+    ) -> dict[str, object]:
+        """
+        Retrieve all source datasets needed by ReturnComponent.
+        """
         return {
-            "dmr": self.load_dmr(start_fy, end_fy),
-            "perm_feature_nmbrs": self.load_perm_feature_nmbrs(),
-        }
-
-
-    # --------------------------------------------------
-    # Main build
-    # --------------------------------------------------
-    def build(self, start, end):
-        start_ts = pd.Timestamp(start)
-        end_ts = pd.Timestamp(end)
-        start_fy = fiscal_year(start_ts)
-        end_fy = fiscal_year(end_ts)
-
-        dmr = self._load_dmr(start_fy, end_fy)
-
-        print("Loaded DMR rows:", len(dmr))
-
-        if dmr.empty:
-            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
-
-        # --------------------------------------------------
-        # Flow records only
-        # --------------------------------------------------
-        #print(dmr.columns)
-        dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
-            dmr["MONITORING_PERIOD_END_DATE"],
-            errors="coerce",
-        )
-        #print(dmr["MONITORING_PERIOD_END_DATE"] .min(), dmr["MONITORING_PERIOD_END_DATE"] .max())
-        dmr = dmr[
-            (dmr["MONITORING_PERIOD_END_DATE"] >= start_ts)
-            & (dmr["MONITORING_PERIOD_END_DATE"] <= end_ts)
-            & (dmr["PARAMETER_CODE"].astype(str).str.strip() == "50050")
-            #& (dmr["STATISTICAL_BASE_CODE"].astype(str) == "DB") 
-        ].copy()
-
-        #print("Flow rows after date and parameter filter:", len(dmr))
-        dmr["FLOW_MGD"] = pd.to_numeric(
-            dmr["DMR_VALUE_STANDARD_UNITS"],
-            errors="coerce",
-        )
-
-        dmr = dmr.dropna(
-            subset=[
-                "MONITORING_PERIOD_END_DATE",
-                "EXTERNAL_PERMIT_NMBR",
-                "PERM_FEATURE_NMBR",
-                "FLOW_MGD",
-            ]
-        )
-        if dmr.empty:
-            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
-        # --------------------------------------------------
-        # Permit, PERM_FEATURE_NMBR, and ID normalization
-        # --------------------------------------------------
-        
-        dmr["PERMIT_NUM"] = self._normalize_npdes(
-            dmr["EXTERNAL_PERMIT_NMBR"]
-        )
-
-        dmr["PERM_FEATURE_NMBR"] = self._normalize_outfall(
-            dmr["PERM_FEATURE_NMBR"]
-        )
-        dmr = dmr.dropna(
-            subset=[
-                "PERMIT_NUM","PERM_FEATURE_NMBR",
-            ]
-        )
-        #dmr_st = dmr.loc[dmr['EXTERNAL_PERMIT_NMBR']=='TX0000027' , ['MONITORING_PERIOD_END_DATE','PERM_FEATURE_NMBR', 'DMR_VALUE_STANDARD_UNITS', 'STATISTICAL_BASE_CODE']].sort_values(by='MONITORING_PERIOD_END_DATE', ascending=True)
-        #print("DMR for TX0000027:", pd.DataFrame(dmr_st))
-        # --------------------------------------------------
-        # Avoid inflating flow because one reported DMR value
-        # can appear more than once due to limit rows.
-        # --------------------------------------------------
-        dedup_cols = [
-            "EXTERNAL_PERMIT_NMBR",
-            "PERMIT_NUM",
-            "PERM_FEATURE_NMBR", #multiple feature/PERM_FEATURE_NMBR may be reported separately
-            "STATISTICAL_BASE_CODE",
-            "MONITORING_PERIOD_END_DATE",
-            "PARAMETER_CODE",
-            "DMR_VALUE_ID",
-            "FLOW_MGD",
-        ]
-
-        dedup_cols = [
-            c for c in dedup_cols
-            if c in dmr.columns
-        ]
-
-        dmr = dmr.drop_duplicates(
-            subset=dedup_cols
-        )
-        print("DMR length after dedup:", len(dmr))
-        # --------------------------------------------------
-        # Monthly feature-level flow
-        #
-        #
-        # keep each permit PERM_FEATURE_NMBR separate before spatial join.
-        # --------------------------------------------------
-        feature_monthly = (
-            dmr
-            .groupby(
-                [
-                    "EXTERNAL_PERMIT_NMBR",
-                    "PERMIT_NUM",
-                    "PERM_FEATURE_NMBR",
-                    "MONITORING_PERIOD_END_DATE",
-                ],
-                as_index=False,
-            )
-            .agg(
-                FLOW_MGD=("FLOW_MGD", "sum"),
-                n_dmr_rows=("FLOW_MGD", "size"),
-            )
-        )
-        #print("Feature monthly rows:", len(feature_monthly))
-        #print(feature_monthly[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
-        feature_monthly["days_in_month"] = (
-            feature_monthly["MONITORING_PERIOD_END_DATE"]
-            .dt.days_in_month
-        )
-
-        feature_monthly["FLOW_ACFT_MONTH"] = mgd_to_afday(feature_monthly["FLOW_MGD"])*feature_monthly["days_in_month"]
-        
-        
-        
-        # --------------------------------------------------
-        # Debug CSV:
-        # permit, monitoring date, feature flow columns,
-        # overall MGD, and overall acre-ft/month.
-        # --------------------------------------------------
-        debug = self._build_feature_debug(feature_monthly)
-        self._write_debug_csv(debug)
-        
-        # --------------------------------------------------
-        # Load PERM_FEATURE_NMBRs
-        # --------------------------------------------------
-        
-        resp = requests.get(
-            PERM_FEATURE_NMBR_URL,timeout=120,verify=certifi.where(),)
-
-        resp.raise_for_status()
-
-        geojson = resp.json()
-        
-
-        PERM_FEATURE_NMBRs = gpd.GeoDataFrame.from_features( geojson["features"], crs="EPSG:4326",)
-        #print("PERM_FEATURE_NMBRs rows:", len(PERM_FEATURE_NMBRs))
-        #print(PERM_FEATURE_NMBRs.columns.tolist())
-        PERM_FEATURE_NMBRs["PERMIT_NUM"] = self._normalize_npdes(
-            PERM_FEATURE_NMBRs["NPDES_NUM"]
-        )
-        PERM_FEATURE_NMBRs["PERM_FEATURE_NMBR"] = self._normalize_outfall(PERM_FEATURE_NMBRs["OUTFALL"])
-        print("PERM_FEATURE_NMBRs rows before dropna:", len(PERM_FEATURE_NMBRs))
-        PERM_FEATURE_NMBRs = PERM_FEATURE_NMBRs.dropna(
-            subset=[
-                "PERMIT_NUM",
-                "PERM_FEATURE_NMBR",
-                "geometry",
-            ]
-        )
-        print("PERM_FEATURE_NMBRs rows after dropna:", len(PERM_FEATURE_NMBRs))
-        #print(PERM_FEATURE_NMBRs.columns.tolist())
-        #print(PERM_FEATURE_NMBRs[ ["PERMIT_NUM","PERM_FEATURE_NMBR"]].head(20))
-        # --------------------------------------------------
-        # One geometry per permit + PERM_FEATURE_NMBR.
-        #
-        # This prevents the old issue:
-        # joining permit total to all PERM_FEATURE_NMBRs and multiplying flow.
-        # --------------------------------------------------
-        PERM_FEATURE_NMBRs_feature = (
-            PERM_FEATURE_NMBRs
-            .drop_duplicates(
-                subset=[
-                    "PERMIT_NUM",
-                    "PERM_FEATURE_NMBR",
-                ]
-            )
-            [
-                [
-                    "PERMIT_NUM",
-                    "PERM_FEATURE_NMBR",
-                    "geometry",
-                ]
-            ]
-        )
- 
-
-        # --------------------------------------------------
-        # Join DMR permit + feature -> TCEQ permit + PERM_FEATURE_NMBR
-        # --------------------------------------------------
-        dmr_geo = feature_monthly.merge(
-            PERM_FEATURE_NMBRs_feature,
-            on=["PERMIT_NUM","PERM_FEATURE_NMBR"],
-            how="left",
-            indicator= True,
-            validate="many_to_one",
-        )
-        dmr_geo["geometry_assignment_method"] = pd.NA
-
-        # Optional join-quality debug
-
-        dmr_geo[
-            [
-                "EXTERNAL_PERMIT_NMBR",
-                "PERMIT_NUM",
-                "PERM_FEATURE_NMBR",
-                "MONITORING_PERIOD_END_DATE",
-                "FLOW_MGD",
-                "FLOW_ACFT_MONTH",
-                "_merge",
-            ]
-        ].to_csv(
-           "return_dmr_PERM_FEATURE_NMBR_join_debug.csv",
-            index=False,
-        )
-        #print(dmr_geo["_merge"].value_counts(dropna=False))
-
-        missing_geo = dmr_geo[dmr_geo["_merge"] == "left_only"].copy()
-
-        if not missing_geo.empty:
-            missing_geo[
-                [
-                    "EXTERNAL_PERMIT_NMBR",
-                    "PERMIT_NUM",
-                    "PERM_FEATURE_NMBR",
-                    "MONITORING_PERIOD_END_DATE",
-                    "FLOW_MGD",
-                    "FLOW_ACFT_MONTH",
-                ]
-            ].to_csv(
-                "return_dmr_missing_PERM_FEATURE_NMBR_geometry.csv",
-                index=False,
-            )
-
-            print(
-                "[ReturnFlow] Missing PERM_FEATURE_NMBR geometry rows: "
-                f"{len(missing_geo)}. "
-                "See return_dmr_missing_PERM_FEATURE_NMBR_geometry.csv"
-            )
-
-        dmr_geo = dmr_geo[
-            dmr_geo["_merge"] == "both"
-        ].drop(columns=["_merge"])
-
-        dmr_geo = dmr_geo.dropna(
-            subset=["geometry"]
-        )
-
-        if dmr_geo.empty:
-            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
-
-        dmr_geo = gpd.GeoDataFrame(
-            dmr_geo,
-            geometry="geometry",
-            crs="EPSG:4326",
-        )
-
-        # --------------------------------------------------
-        # Watershed registry
-        # --------------------------------------------------
-        watersheds = (
-            self.ctx.registry
-            .load_watersheds()
-            [["WS_ID", "Estuary", "geometry"]]
-        )
-
-        watersheds = watersheds.to_crs(
-            dmr_geo.crs
-        )
-
-        watersheds_ungaged = (
-            watersheds.loc[
-                watersheds["HAS_UNGAGE"].eq(1)
-            ]
-            .copy()
-        )
-
-        # Collapse multiple geometry rows belonging
-        # to the same watershed identifier.
-        watersheds_ungaged = (
-            watersheds_ungaged
-            .dissolve(
-                by=[
-                    "WS_ID",
-                    "Estuary",
-                    "HAS_UNGAGE",
-                ],
-                as_index=False,
-            )
-        )
-
-        within_join = gpd.sjoin(
-            dmr_geo,
-            watersheds_ungaged,
-            how="left",
-            predicate="within",
-        )
-
-        dmr_geo = gpd.sjoin(
-            dmr_geo,
-            watersheds_ungaged,
-            how="inner",
-            predicate="intersects",
-        )
-
-        if dmr_geo.empty:
-            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
-
-        # --------------------------------------------------
-        # Date fields
-        # --------------------------------------------------
-        dmr_geo["year"] = (
-            dmr_geo["MONITORING_PERIOD_END_DATE"]
-            .dt.year
-        )
-
-        dmr_geo["month"] = (
-            dmr_geo["MONITORING_PERIOD_END_DATE"]
-            .dt.month
-        )
-
-        # --------------------------------------------------
-        # Aggregate by watershed/month
-        # Use FLOW_ACFT_MONTH, not FLOW_MGD.
-        # This is already total monthly volume.
-        # --------------------------------------------------
-        monthly_ws = (
-            dmr_geo
-            .groupby(
-                [
-                    "WS_ID",
-                    "Estuary",
-                    "year",
-                    "month",
-                ],
-                as_index=False,
-            )
-            .agg(
-                value_acft_month=("FLOW_ACFT_MONTH", "sum"),
-                permits_included=(
-                    "EXTERNAL_PERMIT_NMBR",
-                    lambda x: ";".join(
-                        sorted(x.astype(str).unique())
-                    ),
-                ),
-                PERM_FEATURE_NMBRs_included=(
-                    "PERM_FEATURE_NMBR",
-                    lambda x: ";".join(
-                        sorted(x.astype(str).unique())
-                    ),
-                ),
-                n_permit_PERM_FEATURE_NMBRs=(
-                    "PERM_FEATURE_NMBR",
-                    "size",
-                ),
-            )
-        )
-
-        # --------------------------------------------------
-        # Expand monthly -> daily
-        # No extra MGD conversion here.
-        # The conversion already happened once above.
-        # --------------------------------------------------
-        daily = expand_monthly_to_daily(
-            monthly_ws.rename(
-                columns={
-                    "value_acft_month": "value",
-                    "WS_ID": "ws_id",
-                    "Estuary": "estuary",
-                }
+            "dmr": self.load_dmr(
+                start_fy,
+                end_fy,
             ),
-            year_col="year",
-            month_col="month",
-            value_col="value",
-            id_col="ws_id",
-            estuary_col="estuary",
-            value_is_monthly_total=True,
-        )
-
-        if daily.empty:
-            return pd.DataFrame(
-                columns=REQUIRED_OUT_COLS
-            )
-
-        # --------------------------------------------------
-        # Convert MGD -> AFD
-        # --------------------------------------------------
-        daily["value_afday"] = daily["value"]
-
-        # --------------------------------------------------
-        # Canonical schema
-        # --------------------------------------------------
-        daily["id"] = daily["ws_id"]
-
-        daily["id_type"] = "watershed"
-
-        daily["component"] = self.name
-
-        daily["source"] = "epa_dmr"
-
-        daily["flow_role"] = "return"
-
-        daily["count_in_basin_sum"] = 1
-
-        daily["note"] = None
-
-        return daily[
-            REQUIRED_OUT_COLS
-        ]
-
-    # --------------------------------------------------
-    def run(self, start=None, end=None):
-
-        if start is None:
-            wm = self.ctx.storage.get_watermark(
-                self.name,
-                default="2015-01-01",
-            )
-
-            start = (
-                wm + pd.Timedelta(days=1)
-                if wm is not None
-                else pd.Timestamp("2015-01-01")
-            )
-
-        if end is None:
-            end = (
-                pd.Timestamp.utcnow()
-                .normalize()
-            )
-
-        print(
-            f"[ReturnFlow] Running {start} → {end}"
-        )
-
-        df = self.build(start, end)
-
-        if df.empty:
-            print("[ReturnFlow] No rows written")
-            return 0
-
-        n = self.ctx.storage.append(df)
-
-        self.ctx.storage.set_watermark(
-            self.name,
-            df["date"].max(),
-        )
-
-        return n
-        
-def build_return(monthly_df):
-
-    df = expand_monthly_to_daily(monthly_df)
-
-    df["component"] = "return"
-    df["flow_role"] = "direct"
-    df["count_in_basin_sum"] = 1
-
-    return df
+            "perm_feature_nmbrs": (
+                self.load_perm_feature_nmbrs()
+            ),
+        }
