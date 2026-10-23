@@ -8,17 +8,10 @@ from pathlib import Path
 import pandas as pd
 
 from tx_fwi.components.base import RunContext
-from tx_fwi.components.diversion import DiversionComponent
 from tx_fwi.components.gaged import LocalGagedComponent
 from tx_fwi.components.gaged_upstream import UpstreamGagedComponent
-from tx_fwi.components.returns import ReturnComponent
-from tx_fwi.components.ungaged import UngagedComponent
 from tx_fwi.qaqc.manager import RunManager
-
-# Change these imports if your repository uses different
-# configuration, storage, or registry constructors.
-#from tx_fwi.config import Config
-from tx_fwi.registry.registry import Registry
+from tx_fwi.registry import Registry
 from tx_fwi.storage import Storage
 
 
@@ -40,123 +33,26 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description=(
             "Run the freshwater-inflow pipeline "
-            "with QA/QC logging."
+            "with QA/QC reporting."
         )
     )
 
     parser.add_argument(
         "--start",
         required=True,
-        help="Requested start date, such as 2015-01-01.",
     )
 
     parser.add_argument(
         "--end",
         required=True,
-        help="Requested end date, such as 2015-02-28.",
     )
 
     parser.add_argument(
         "--log-root",
-        default=None,
-        help=(
-            "Optional QA/QC log directory. "
-            "Overrides config.LOG_ROOT."
-        ),
+        default="logs",
     )
 
     return parser.parse_args()
-
-
-def run_pipeline(
-    *,
-    start,
-    end,
-    config,
-    storage,
-    registry,
-    log_root,
-) -> int:
-    manager = RunManager(
-        log_root=log_root,
-        requested_start=start,
-        requested_end=end,
-        repository_version=git_version(),
-        environment=getattr(
-            config,
-            "ENVIRONMENT_NAME",
-            None,
-        ),
-    )
-
-    ctx = RunContext(
-        storage=storage,
-        registry=registry,
-        config=config,
-        logger=manager.logger,
-        run_manager=manager,
-    )
-
-    manager.logger.info(
-        "Starting FWI run %s through %s",
-        pd.Timestamp(start).date(),
-        pd.Timestamp(end).date(),
-    )
-
-    components = [
-        LocalGagedComponent(ctx),
-        UpstreamGagedComponent(ctx),
-        UngagedComponent(ctx),
-        DiversionComponent(ctx),
-        ReturnComponent(ctx),
-    ]
-
-    exit_code = 0
-
-    try:
-        for component in components:
-            manager.logger.info(
-                "Starting component=%s",
-                component.name,
-            )
-
-            component.run(
-                start=start,
-                end=end,
-            )
-
-        manifest = manager.finalize()
-
-        if manifest.status == "FAIL":
-            exit_code = 1
-
-    except Exception:
-        manager.logger.exception(
-            "Pipeline failed with an unhandled error."
-        )
-
-        exit_code = 1
-
-    finally:
-        manifest = manager.finalize()
-
-        print()
-        print("Pipeline status:", manifest.status)
-        print("Run directory:", manager.run_dir)
-        print(
-            "Summary:",
-            manager.run_dir / "run_summary.csv",
-        )
-        print(
-            "Manifest:",
-            manager.run_dir / "run_manifest.json",
-        )
-        print(
-            "Detailed log:",
-            manager.run_dir / "run.log",
-        )
-
-    return exit_code
 
 
 def main() -> int:
@@ -170,45 +66,106 @@ def main() -> int:
             "--end cannot be earlier than --start."
         )
 
-    config = Config()
-
-    log_root = Path(
-        args.log_root
-        or getattr(
-            config,
-            "LOG_ROOT",
-            "logs",
-        )
-    )
+    log_root = Path(args.log_root).resolve()
 
     log_root.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    storage = Storage(
-        config=config,
+    # Use the same constructors as the existing production runner.
+    storage = Storage()
+    registry = Registry()
+
+    run_manager = RunManager(
+        log_root=log_root,
+        requested_start=start,
+        requested_end=end,
+        repository_version=git_version(),
+        environment=None,
     )
 
-    registry = Registry(
-        config=config,
-    )
-
-    print("Requested start:", start)
-    print("Requested end:", end)
-    print(
-        "QA/QC log root:",
-        log_root.resolve(),
-    )
-
-    return run_pipeline(
-        start=start,
-        end=end,
-        config=config,
+    ctx = RunContext(
         storage=storage,
         registry=registry,
-        log_root=log_root,
+        config=None,
+        logger=run_manager.logger,
+        run_manager=run_manager,
     )
+
+    components = [
+        LocalGagedComponent(ctx),
+        UpstreamGagedComponent(ctx),
+    ]
+
+    exit_code = 0
+
+    run_manager.logger.info(
+        "Starting FWI run %s through %s",
+        start.date(),
+        end.date(),
+    )
+
+    try:
+        for component in components:
+            run_manager.logger.info(
+                "Starting component=%s",
+                component.name,
+            )
+
+            component.run(
+                start=start,
+                end=end,
+            )
+
+        manifest = run_manager.finalize()
+
+        if manifest.status == "FAIL":
+            exit_code = 1
+
+    except Exception:
+        run_manager.logger.exception(
+            "Pipeline failed with an "
+            "unhandled exception."
+        )
+
+        exit_code = 1
+
+    finally:
+        manifest = run_manager.finalize()
+
+        print()
+        print(
+            "Pipeline status:",
+            manifest.status,
+        )
+        print(
+            "Run directory:",
+            run_manager.run_dir.resolve(),
+        )
+        print(
+            "Run log:",
+            (
+                run_manager.run_dir
+                / "run.log"
+            ).resolve(),
+        )
+        print(
+            "Run summary:",
+            (
+                run_manager.run_dir
+                / "run_summary.csv"
+            ).resolve(),
+        )
+        print(
+            "Run manifest:",
+            (
+                run_manager.run_dir
+                / "run_manifest.json"
+            ).resolve(),
+        )
+
+    return exit_code
 
 
 if __name__ == "__main__":
