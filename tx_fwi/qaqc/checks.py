@@ -5,14 +5,6 @@ import pandas as pd
 
 from tx_fwi.qaqc.models import CheckResult
 
-# tx_fwi/qaqc/checks.py
-from __future__ import annotations
-
-import pandas as pd
-
-from tx_fwi.qaqc.models import CheckResult
-
-
 def check_date_coverage(
     df: pd.DataFrame,
     *,
