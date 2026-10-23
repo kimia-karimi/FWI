@@ -131,6 +131,7 @@ class UngagedComponent(QAComponentMixin):
             df["component"] = self.name
 
             df["source"] = "txrr"
+            
 
             #
             # Direct watershed contribution
@@ -142,6 +143,10 @@ class UngagedComponent(QAComponentMixin):
 
 
             df["note"] = None
+            df["_source_gage"] = str(gage_id)
+            df["_source_component_id"] = str(component_id)
+            df["_source_expected_start"] = (pd.Timestamp(start).normalize())
+            df["_source_expected_end"] = (pd.Timestamp(end).normalize())
 
             rows.append(df)
 
