@@ -11,7 +11,7 @@ from tx_fwi.components.base import RunContext
 from tx_fwi.components.gaged import LocalGagedComponent
 from tx_fwi.components.gaged_upstream import UpstreamGagedComponent
 from tx_fwi.qaqc.manager import RunManager
-from tx_fwi.registry import Registry
+from tx_fwi.registry.registry import Registry
 from tx_fwi.storage import Storage
 
 
