@@ -8,6 +8,11 @@ from tx_fwi.components.base import RunContext
 from tx_fwi.sources.base import registry
 from tx_fwi.transforms.units import mgd_to_afday
 import certifi
+from tx_fwi.components.base import RunContext
+from tx_fwi.components.qaqc_mixin import QAComponentMixin
+from tx_fwi.qaqc.component_checks import validate_canonical_component
+from tx_fwi.qaqc.models import CheckResult
+
 REQUIRED_OUT_COLS = [
     "date",
     "id",
@@ -27,7 +32,7 @@ MONTH_MAP = {"JAN_DIV":1,"FEB_DIV":2,"MAR_DIV":3,"APR_DIV":4,"MAY_DIV":5,"JUN_DI
 # monthly columns 
 MONTHLY_COLS = list(MONTH_MAP.keys())
 
-class DiversionComponent:
+class DiversionComponent(QAComponentMixin):
     name = "diversion"
     def __init__(self, ctx):
         self.ctx = ctx
