@@ -6,7 +6,11 @@ import pandas as pd
 from tx_fwi.components.base import RunContext
 from tx_fwi.sources.usgs import fetch_usgs_daily_afday
 # from tx_fwi.sources.lnra import load_lake_texana_daily_afday  # optional hook
+from tx_fwi.components.base import RunContext
+from tx_fwi.components.qaqc_mixin import QAComponentMixin
+from tx_fwi.qaqc.component_checks import validate_canonical_component
 
+from tx_fwi.qaqc.models import CheckResult
 
 REQUIRED_OUT_COLS = [
     "date",
@@ -23,7 +27,7 @@ REQUIRED_OUT_COLS = [
 ]
 
 
-class UpstreamGagedComponent:
+class UpstreamGagedComponent(QAComponentMixin):
     """
     Builds estuary-level upstream gaged inflows (system components).
 
