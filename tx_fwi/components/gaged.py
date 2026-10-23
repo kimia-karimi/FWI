@@ -6,6 +6,11 @@ import pandas as pd
 from tx_fwi.components.base import RunContext
 
 from tx_fwi.sources.base import registry
+# from tx_fwi.sources.lnra import load_lake_texana_daily_afday  # optional hook
+from tx_fwi.components.base import RunContext
+from tx_fwi.components.qaqc_mixin import QAComponentMixin
+from tx_fwi.qaqc.component_checks import validate_canonical_component
+from tx_fwi.qaqc.models import CheckResult
 
 
 REQUIRED_OUT_COLS = [
@@ -28,7 +33,7 @@ def _normalize_key(x):
         return None
     return str(x).strip().lower()
 
-class LocalGagedComponent:
+class LocalGagedComponent(QAComponentMixin):
     name = "gaged"
 
     def __init__(self, ctx: RunContext):
