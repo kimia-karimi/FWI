@@ -13,6 +13,10 @@ from tx_fwi.transforms.spatial import (
 from tx_fwi.transforms.temporal import expand_monthly_to_daily
 from tx_fwi.transforms.units import mgd_to_afday
 
+from tx_fwi.components.qaqc_mixin import QAComponentMixin
+from tx_fwi.qaqc.component_checks import validate_canonical_component
+
+from tx_fwi.qaqc.models import CheckResult
 
 REQUIRED_OUT_COLS = [
     "date",
@@ -365,7 +369,7 @@ def _join_unique(values):
     )
 
 
-class ReturnComponent:
+class ReturnComponent(QAComponentMixin):
     name = "return"
 
     def __init__(self, ctx: RunContext):
