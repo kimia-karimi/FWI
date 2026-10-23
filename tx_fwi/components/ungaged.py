@@ -8,7 +8,11 @@ from tx_fwi.sources.models import (
     load_txrr_flow,
 )
 
+from tx_fwi.components.base import RunContext
+from tx_fwi.components.qaqc_mixin import QAComponentMixin
+from tx_fwi.qaqc.component_checks import validate_canonical_component
 
+from tx_fwi.qaqc.models import CheckResult
 REQUIRED_OUT_COLS = [
     "date",
     "id",
@@ -24,7 +28,7 @@ REQUIRED_OUT_COLS = [
 ]
 
 
-class UngagedComponent:
+class UngagedComponent(QAComponentMixin):
     """
     Build daily ungaged watershed flows
     from TxRR model outputs.
