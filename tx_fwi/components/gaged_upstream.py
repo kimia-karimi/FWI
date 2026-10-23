@@ -59,6 +59,9 @@ class UpstreamGagedComponent(QAComponentMixin):
         # ✅ USGS (primary path)
         if source == "usgs":
             print(f"[Upstream] Fetching USGS {gage_id}")
+            logger = self.ctx.component_logger(self.name)
+
+            logger.debug("Fetching source=%s gage=%s " "for %s through %s",source,gage_id,pd.Timestamp(start).date(),pd.Timestamp(end).date(),)
             return fetch_usgs_daily_afday(gage_id, start, end)
 
         # 🔧 LNRA / Lake Texana (future hook)
@@ -78,6 +81,7 @@ class UpstreamGagedComponent(QAComponentMixin):
     # BUILD DATAFRAME
     # ------------------------------------------------------------------
     def build(self, start, end) -> pd.DataFrame:
+        self._source_failures = []
         print(self.ctx.registry.upstream_json)
         upstream_cfg = self.ctx.registry.load_upstream_gages()
         print(list(upstream_cfg.keys()))
@@ -114,7 +118,16 @@ class UpstreamGagedComponent(QAComponentMixin):
                         meta=comp,
                     )
                 except Exception as e:
-                    print(f"  !! Failed fetch: {e}")
+                    logger.error(
+                        "Source fetch failed for "
+                        "component_id=%s gage=%s: %s",
+                        component_id,
+                        gage_id, e,)
+                    self._source_failures.append(
+                        {
+                            "component_id": component_id, "gage_id": gage_id,"source": source,"reason": str(exc), "exception_type": ( type(exc).__name__),
+                        }
+                    )
                     continue
 
                 if s is None or s.empty:
@@ -136,6 +149,10 @@ class UpstreamGagedComponent(QAComponentMixin):
                 df["count_in_basin_sum"] = 1
                 df["data_as_of"] = pd.Timestamp(end)
                 df["note"] = label if label else special
+                df["_source_gage"] = str(gage_id)
+                df["_source_component_id"] = str(component_id)
+                df["_source_expected_start"] = (pd.Timestamp(start).normalize())
+                df["_source_expected_end"] = (pd.Timestamp(end).normalize())
 
                 rows.append(df)
 
@@ -144,36 +161,202 @@ class UpstreamGagedComponent(QAComponentMixin):
 
         out = pd.concat(rows, ignore_index=True)
 
-        return out[REQUIRED_OUT_COLS]
-
+        return out[REQUIRED_OUT_COLS+ [ "_source_gage","_source_component_id","_source_expected_start", "_source_expected_end", ]]
+                
     # ------------------------------------------------------------------
     # RUN (with watermark logic)
     # ------------------------------------------------------------------
-    def run(self, start=None, end=None) -> int:
+    def validate(
+    self,
+    df,
+    *,
+    result,
+    start,
+    end,
+    ) -> None:
+    validate_canonical_component(
+        df,
+        component_result=result,
+        run_manager=(
+            self.ctx.run_manager
+        ),
+        component=self.name,
+        start=start,
+        end=end,
+        coverage_group_cols=[
+            "id",
+            "_source_gage",
+        ],
+        duplicate_key_cols=[
+            "date",
+            "id",
+            "component",
+            "source",
+            "flow_role",
+        ],
+    )
 
-        # Determine start
-        if start is None:
-            wm = self.ctx.storage.get_watermark(self.name, default="2015-01-01")
+    if df.empty:
+        return
 
-            if wm is not None:
-                start = wm + pd.Timedelta(days=1)
-            else:
-                start = pd.Timestamp("2015-01-01")
+    # Distinguish actual missing dates from legitimate zero flows.
+    expected_dates = pd.date_range(
+        pd.Timestamp(start).normalize(),
+        pd.Timestamp(end).normalize(),
+        freq="D",
+    )
 
-        # Determine end
-        if end is None:
-            end = pd.Timestamp.utcnow().normalize()
+    coverage_rows = []
 
-        print(f"\n[Upstream] Running from {start} → {end}")
+    for (
+        source_gage,
+        output_id,
+    ), group in df.groupby(
+        [
+            "_source_gage",
+            "id",
+        ],
+        dropna=False,
+    ):
+        actual_dates = pd.DatetimeIndex(
+            pd.to_datetime(
+                group["date"],
+                errors="coerce",
+            )
+            .dropna()
+            .dt.normalize()
+            .unique()
+        )
 
-        df = self.build(start=start, end=end)
+        missing_dates = (
+            expected_dates.difference(
+                actual_dates
+            )
+        )
 
-        if df.empty:
-            print("[Upstream] No rows to write.")
-            return 0
+        values = pd.to_numeric(
+            group["value_afday"],
+            errors="coerce",
+        )
 
-        n = self.ctx.storage.append(df ,run_start=start, run_end= end)
+        coverage_rows.append(
+            {
+                "source_gage": (
+                    source_gage
+                ),
+                "id": output_id,
+                "expected_start": (
+                    expected_dates.min()
+                ),
+                "expected_end": (
+                    expected_dates.max()
+                ),
+                "actual_start": (
+                    actual_dates.min()
+                    if len(actual_dates)
+                    else pd.NaT
+                ),
+                "actual_end": (
+                    actual_dates.max()
+                    if len(actual_dates)
+                    else pd.NaT
+                ),
+                "expected_dates": len(
+                    expected_dates
+                ),
+                "actual_dates": len(
+                    actual_dates
+                ),
+                "missing_dates": len(
+                    missing_dates
+                ),
+                "zero_value_dates": int(
+                    values.eq(0).sum()
+                ),
+                "complete": (
+                    len(missing_dates) == 0
+                ),
+            }
+        )
 
-        self.ctx.storage.set_watermark(self.name, df["date"].max())
+    coverage = pd.DataFrame(
+        coverage_rows
+    )
 
-        return n
+    incomplete = coverage.loc[
+        ~coverage["complete"]
+    ].copy()
+
+    exception_path = (
+        self.ctx.run_manager
+        .write_exception_csv(
+            component=self.name,
+            name=(
+                "incomplete_gage_coverage"
+            ),
+            df=incomplete,
+        )
+    )
+
+    result.add_check(
+        CheckResult(
+            check_id=(
+                "local_gage_coverage"
+            ),
+            status=(
+                "PASS"
+                if incomplete.empty
+                else "FAIL"
+            ),
+            message=(
+                "All local gages cover the "
+                "requested period."
+                if incomplete.empty
+                else (
+                    f"{len(incomplete)} local "
+                    "gages have incomplete "
+                    "date coverage."
+                )
+            ),
+            expected={
+                "incomplete_gages": 0,
+            },
+            actual={
+                "incomplete_gages": len(
+                    incomplete
+                ),
+                "gages_checked": len(
+                    coverage
+                ),
+            },
+            blocking=True,
+            details=(
+                {
+                    "exception_file": (
+                        exception_path
+                    )
+                }
+                if exception_path
+                else {}
+            ),
+        )
+    )
+
+    result.metrics.update(
+        {
+            "gages_checked": len(
+                coverage
+            ),
+            "complete_gages": int(
+                coverage["complete"].sum()
+            ),
+            "incomplete_gages": int(
+                (~coverage["complete"]).sum()
+            ),
+            "zero_value_dates": int(
+                coverage[
+                    "zero_value_dates"
+                ].sum()
+            ),
+        }
+    )    
