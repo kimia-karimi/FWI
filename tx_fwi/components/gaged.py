@@ -1,4 +1,4 @@
-# tx_fwi/components/gaged_upstream.py
+# tx_fwi/components/gaged.py
 from __future__ import annotations
 
 import pandas as pd
@@ -9,8 +9,8 @@ from tx_fwi.qaqc.component_checks import (
     validate_canonical_component,
 )
 from tx_fwi.qaqc.models import CheckResult
-from tx_fwi.sources.usgs import (
-    fetch_usgs_daily_afday,
+from tx_fwi.sources.base import (
+    registry as source_registry,
 )
 
 
@@ -32,22 +32,24 @@ REQUIRED_OUT_COLS = [
 INTERNAL_QA_COLS = [
     "_source_gage",
     "_source_component_id",
+    "_source_kind",
+    "_source_special",
     "_source_expected_start",
     "_source_expected_end",
 ]
 
 
-class UpstreamGagedComponent(
+def _normalize_key(value):
+    if value is None or pd.isna(value):
+        return None
+
+    return str(value).strip().lower()
+
+
+class LocalGagedComponent(
     QAComponentMixin,
 ):
-    """
-    Build estuary-level upstream gaged inflows.
-
-    Upstream gages are stored as system components. They are not
-    assigned as additive local flow to every downstream watershed.
-    """
-
-    name = "gaged_upstream"
+    name = "gaged"
 
     def __init__(
         self,
@@ -58,58 +60,61 @@ class UpstreamGagedComponent(
 
     def fetch(
         self,
-        source: str,
-        gage_id: str,
+        source,
+        gage_id,
         start,
         end,
         *,
         special=None,
-        meta: dict | None = None,
-    ) -> pd.Series:
+        meta=None,
+    ):
         """
-        Retrieve one upstream-gage time series.
+        Retrieve one local-gage time series through the source registry.
         """
         logger = self.ctx.component_logger(
             self.name
         )
 
         source_normalized = (
-            str(source)
-            .strip()
-            .lower()
+            _normalize_key(source)
         )
 
+        special_normalized = (
+            _normalize_key(special)
+        )
+
+        try:
+            handler = source_registry.get(
+                source_normalized,
+                special_normalized,
+            )
+        except KeyError as exc:
+            raise NotImplementedError(
+                "No handler is registered for "
+                f"source={source_normalized}, "
+                f"special={special_normalized}."
+            ) from exc
+
         logger.debug(
-            "Fetching source=%s gage=%s "
-            "for %s through %s",
+            "Fetching source=%s special=%s "
+            "gage=%s for %s through %s",
             source_normalized,
+            special_normalized,
             gage_id,
             pd.Timestamp(start).date(),
             pd.Timestamp(end).date(),
         )
 
-        if source_normalized == "usgs":
-            return fetch_usgs_daily_afday(
-                str(gage_id),
-                start,
-                end,
-            )
-
-        if source_normalized == "lnra":
-            raise NotImplementedError(
-                "LNRA upstream retrieval is not "
-                "implemented in this component."
-            )
-
-        if source_normalized == "ibwc":
-            raise NotImplementedError(
-                "IBWC upstream retrieval is not "
-                "implemented in this component."
-            )
-
-        raise NotImplementedError(
-            "Unsupported upstream source: "
-            f"{source_normalized}"
+        return handler(
+            start=start,
+            end=end,
+            site_id=(
+                str(gage_id)
+                if gage_id is not None
+                and not pd.isna(gage_id)
+                else None
+            ),
+            meta=meta,
         )
 
     def build(
@@ -123,217 +128,358 @@ class UpstreamGagedComponent(
 
         self._source_failures = []
 
-        upstream_config = (
+        watersheds = (
             self.ctx.registry
-            .load_upstream_gages()
+            .load_watersheds()
+            .copy()
         )
+
+        required_registry_cols = [
+            "WS_ID",
+            "Estuary",
+            "HAS_GAGED",
+            "SPECIAL",
+            "G_SOURCE",
+            "GAGE_ID",
+        ]
+
+        missing_registry_cols = [
+            col
+            for col in required_registry_cols
+            if col not in watersheds.columns
+        ]
+
+        if missing_registry_cols:
+            raise KeyError(
+                "Watershed registry is missing "
+                "local-gage columns: "
+                + ", ".join(
+                    missing_registry_cols
+                )
+            )
+
+        active = watersheds.loc[
+            watersheds["HAS_GAGED"].eq(1)
+            | watersheds["SPECIAL"].notna()
+        ].copy()
+
+        special_groups: dict[str, str] = {}
+
+        for special_name, group in (
+            watersheds
+            .dropna(subset=["SPECIAL"])
+            .groupby("SPECIAL")
+        ):
+            primary = group.loc[
+                group["HAS_GAGED"].eq(1)
+            ]
+
+            if len(primary) != 1:
+                raise ValueError(
+                    f"{special_name} must have "
+                    "exactly one HAS_GAGED=1 "
+                    "watershed."
+                )
+
+            special_groups[
+                str(special_name)
+            ] = str(
+                primary.iloc[0]["WS_ID"]
+            )
 
         rows: list[pd.DataFrame] = []
 
         logger.info(
-            "Processing %s upstream estuary definitions",
-            len(upstream_config),
+            "Processing %s local-gage "
+            "registry records",
+            len(active),
         )
 
-        for estuary, components in (
-            upstream_config.items()
+        for _, registry_row in (
+            active.iterrows()
         ):
-            logger.debug(
-                "Processing estuary=%s "
-                "component_count=%s",
-                estuary,
-                len(components),
+            ws_id = str(
+                registry_row["WS_ID"]
             )
 
-            for definition in components:
-                component_id = str(
-                    definition["component_id"]
+            estuary = registry_row.get(
+                "Estuary"
+            )
+
+            source = registry_row.get(
+                "G_SOURCE"
+            )
+
+            gage_id = registry_row.get(
+                "GAGE_ID"
+            )
+
+            special = registry_row.get(
+                "SPECIAL"
+            )
+
+            # Rows without a configured source cannot be
+            # retrieved. Record them explicitly when they
+            # are otherwise active.
+            if pd.isna(source):
+                self._source_failures.append(
+                    {
+                        "ws_id": ws_id,
+                        "estuary": estuary,
+                        "gage_id": (
+                            None
+                            if pd.isna(gage_id)
+                            else str(gage_id)
+                        ),
+                        "source": None,
+                        "special": (
+                            None
+                            if pd.isna(special)
+                            else str(special)
+                        ),
+                        "reason": (
+                            "missing_source_configuration"
+                        ),
+                        "exception_type": None,
+                    }
                 )
 
-                source = str(
-                    definition["source"]
+                continue
+
+            if (
+                pd.isna(gage_id)
+                and pd.isna(special)
+            ):
+                self._source_failures.append(
+                    {
+                        "ws_id": ws_id,
+                        "estuary": estuary,
+                        "gage_id": None,
+                        "source": str(source),
+                        "special": None,
+                        "reason": (
+                            "missing_gage_id"
+                        ),
+                        "exception_type": None,
+                    }
                 )
 
-                gage_id = str(
-                    definition["gage_id"]
+                continue
+
+            try:
+                series = self.fetch(
+                    source=source,
+                    gage_id=gage_id,
+                    start=start,
+                    end=end,
+                    special=special,
+                    meta=registry_row.to_dict(),
                 )
 
-                label = definition.get(
-                    "label"
+            except Exception as exc:
+                logger.error(
+                    "Source fetch failed for "
+                    "ws_id=%s gage=%s: %s",
+                    ws_id,
+                    gage_id,
+                    exc,
                 )
 
-                special = definition.get(
-                    "special"
+                self._source_failures.append(
+                    {
+                        "ws_id": ws_id,
+                        "estuary": estuary,
+                        "gage_id": (
+                            None
+                            if pd.isna(gage_id)
+                            else str(gage_id)
+                        ),
+                        "source": str(source),
+                        "special": (
+                            None
+                            if pd.isna(special)
+                            else str(special)
+                        ),
+                        "reason": str(exc),
+                        "exception_type": (
+                            type(exc).__name__
+                        ),
+                    }
                 )
 
-                try:
-                    series = self.fetch(
-                        source=source,
-                        gage_id=gage_id,
-                        start=start,
-                        end=end,
-                        special=special,
-                        meta=definition,
-                    )
+                continue
 
-                except Exception as exc:
-                    logger.error(
-                        "Source fetch failed for "
-                        "component_id=%s gage=%s: %s",
-                        component_id,
-                        gage_id,
-                        exc,
-                    )
+            if (
+                series is None
+                or series.empty
+            ):
+                logger.warning(
+                    "No source data returned for "
+                    "ws_id=%s gage=%s",
+                    ws_id,
+                    gage_id,
+                )
 
-                    self._source_failures.append(
-                        {
-                            "estuary": estuary,
-                            "component_id": (
-                                component_id
-                            ),
-                            "gage_id": gage_id,
-                            "source": source,
-                            "reason": str(exc),
-                            "exception_type": (
-                                type(exc).__name__
-                            ),
-                        }
-                    )
+                self._source_failures.append(
+                    {
+                        "ws_id": ws_id,
+                        "estuary": estuary,
+                        "gage_id": (
+                            None
+                            if pd.isna(gage_id)
+                            else str(gage_id)
+                        ),
+                        "source": str(source),
+                        "special": (
+                            None
+                            if pd.isna(special)
+                            else str(special)
+                        ),
+                        "reason": (
+                            "no_data_returned"
+                        ),
+                        "exception_type": None,
+                    }
+                )
 
-                    continue
+                continue
 
-                if (
-                    series is None
-                    or series.empty
-                ):
-                    logger.warning(
-                        "No source data returned for "
-                        "component_id=%s gage=%s",
-                        component_id,
-                        gage_id,
-                    )
+            frame = series.reset_index()
 
-                    self._source_failures.append(
-                        {
-                            "estuary": estuary,
-                            "component_id": (
-                                component_id
-                            ),
-                            "gage_id": gage_id,
-                            "source": source,
-                            "reason": (
-                                "no_data_returned"
-                            ),
-                            "exception_type": None,
-                        }
-                    )
+            if len(frame.columns) != 2:
+                raise ValueError(
+                    "Local source series must "
+                    "reset to exactly two columns. "
+                    f"ws_id={ws_id}; "
+                    f"columns={frame.columns.tolist()}"
+                )
 
-                    continue
+            frame.columns = [
+                "date",
+                "value_afday",
+            ]
 
-                frame = series.reset_index()
+            frame["date"] = pd.to_datetime(
+                frame["date"],
+                errors="coerce",
+            ).dt.normalize()
 
-                if len(frame.columns) != 2:
-                    raise ValueError(
-                        "Upstream source series must "
-                        "reset to exactly two columns. "
-                        f"gage_id={gage_id}; "
-                        f"columns={frame.columns.tolist()}"
-                    )
+            frame["value_afday"] = (
+                pd.to_numeric(
+                    frame["value_afday"],
+                    errors="coerce",
+                )
+            )
 
-                frame.columns = [
+            frame = frame.dropna(
+                subset=[
                     "date",
                     "value_afday",
                 ]
+            ).copy()
 
-                frame["date"] = pd.to_datetime(
-                    frame["date"],
-                    errors="coerce",
-                ).dt.normalize()
+            frame["id"] = ws_id
+            frame["id_type"] = "watershed"
+            frame["estuary"] = estuary
+            frame["component"] = self.name
 
-                frame["value_afday"] = (
-                    pd.to_numeric(
-                        frame["value_afday"],
-                        errors="coerce",
-                    )
-                )
+            frame["source"] = (
+                str(source)
+                .strip()
+                .lower()
+            )
 
-                frame = frame.dropna(
-                    subset=[
-                        "date",
-                        "value_afday",
-                    ]
-                ).copy()
+            frame["flow_role"] = (
+                "adjusted"
+                if pd.notna(special)
+                else "direct"
+            )
 
-                frame["id"] = component_id
-                frame["id_type"] = "system"
-                frame["estuary"] = estuary
-                frame["component"] = self.name
-
-                frame["source"] = (
-                    source.strip().lower()
+            if pd.notna(special):
+                primary_ws = special_groups.get(
+                    str(special)
                 )
 
                 frame[
-                    "flow_role"
-                ] = "system_counted"
-
+                    "count_in_basin_sum"
+                ] = int(
+                    ws_id == primary_ws
+                )
+            else:
                 frame[
                     "count_in_basin_sum"
                 ] = 1
 
-                frame["data_as_of"] = (
-                    pd.Timestamp(end)
-                    .normalize()
-                )
+            frame["data_as_of"] = (
+                pd.Timestamp(end)
+                .normalize()
+            )
 
-                frame["note"] = (
-                    label
-                    if label
-                    else special
-                )
+            frame["note"] = (
+                str(special)
+                if pd.notna(special)
+                else None
+            )
 
-                # Internal QA/QC fields. The mixin removes
-                # underscore-prefixed fields before append.
-                frame["_source_gage"] = gage_id
+            frame["_source_gage"] = (
+                str(gage_id)
+                if pd.notna(gage_id)
+                else pd.NA
+            )
 
-                frame[
-                    "_source_component_id"
-                ] = component_id
+            # The local output component ID is the
+            # watershed ID. There is no separate
+            # component_id variable in this loop.
+            frame[
+                "_source_component_id"
+            ] = ws_id
 
-                frame[
-                    "_source_expected_start"
-                ] = (
-                    pd.Timestamp(start)
-                    .normalize()
-                )
+            frame["_source_kind"] = (
+                str(source)
+                .strip()
+                .lower()
+            )
 
-                frame[
-                    "_source_expected_end"
-                ] = (
-                    pd.Timestamp(end)
-                    .normalize()
-                )
+            frame["_source_special"] = (
+                str(special)
+                if pd.notna(special)
+                else pd.NA
+            )
 
-                rows.append(frame)
+            frame[
+                "_source_expected_start"
+            ] = (
+                pd.Timestamp(start)
+                .normalize()
+            )
 
-                logger.debug(
-                    "Retrieved component_id=%s "
-                    "gage=%s rows=%s "
-                    "first_date=%s last_date=%s",
-                    component_id,
-                    gage_id,
-                    len(frame),
-                    (
-                        frame["date"].min()
-                        if not frame.empty
-                        else None
-                    ),
-                    (
-                        frame["date"].max()
-                        if not frame.empty
-                        else None
-                    ),
-                )
+            frame[
+                "_source_expected_end"
+            ] = (
+                pd.Timestamp(end)
+                .normalize()
+            )
+
+            rows.append(frame)
+
+            logger.debug(
+                "Retrieved ws_id=%s gage=%s "
+                "rows=%s first_date=%s "
+                "last_date=%s",
+                ws_id,
+                gage_id,
+                len(frame),
+                (
+                    frame["date"].min()
+                    if not frame.empty
+                    else None
+                ),
+                (
+                    frame["date"].max()
+                    if not frame.empty
+                    else None
+                ),
+            )
 
         if not rows:
             return pd.DataFrame(
@@ -350,8 +496,8 @@ class UpstreamGagedComponent(
         )
 
         logger.info(
-            "Built %s upstream rows for "
-            "%s system components",
+            "Built %s local-gaged rows "
+            "for %s output watersheds",
             len(output),
             output["id"].nunique(
                 dropna=True
@@ -408,7 +554,7 @@ class UpstreamGagedComponent(
         result.add_check(
             CheckResult(
                 check_id=(
-                    "upstream_source_retrieval"
+                    "local_source_retrieval"
                 ),
                 status=(
                     "PASS"
@@ -416,13 +562,14 @@ class UpstreamGagedComponent(
                     else "FAIL"
                 ),
                 message=(
-                    "All upstream sources "
-                    "returned data."
+                    "All configured local-gage "
+                    "sources returned data."
                     if source_failures.empty
                     else (
                         f"{len(source_failures)} "
-                        "upstream sources failed "
-                        "or returned no data."
+                        "local-gage sources failed, "
+                        "returned no data, or were "
+                        "not fully configured."
                     )
                 ),
                 expected={
@@ -448,222 +595,6 @@ class UpstreamGagedComponent(
 
         if df.empty:
             return
-
-        upstream_config = (
-            self.ctx.registry
-            .load_upstream_gages()
-        )
-
-        expected_components: set[str] = set()
-        expected_gages: set[str] = set()
-
-        for definitions in (
-            upstream_config.values()
-        ):
-            for definition in definitions:
-                expected_components.add(
-                    str(
-                        definition[
-                            "component_id"
-                        ]
-                    )
-                )
-
-                expected_gages.add(
-                    str(
-                        definition[
-                            "gage_id"
-                        ]
-                    )
-                )
-
-        actual_components = set(
-            df["id"]
-            .dropna()
-            .astype(str)
-        )
-
-        actual_gages = set(
-            df["_source_gage"]
-            .dropna()
-            .astype(str)
-        )
-
-        missing_components = sorted(
-            expected_components
-            - actual_components
-        )
-
-        unexpected_components = sorted(
-            actual_components
-            - expected_components
-        )
-
-        missing_gages = sorted(
-            expected_gages
-            - actual_gages
-        )
-
-        component_set_valid = (
-            not missing_components
-            and not unexpected_components
-            and not missing_gages
-        )
-
-        result.add_check(
-            CheckResult(
-                check_id=(
-                    "expected_upstream_components"
-                ),
-                status=(
-                    "PASS"
-                    if component_set_valid
-                    else "FAIL"
-                ),
-                message=(
-                    "Upstream output matches "
-                    "the registry definitions."
-                    if component_set_valid
-                    else (
-                        "Upstream output does not "
-                        "match the registry "
-                        "definitions."
-                    )
-                ),
-                expected={
-                    "component_count": len(
-                        expected_components
-                    ),
-                    "gage_count": len(
-                        expected_gages
-                    ),
-                },
-                actual={
-                    "component_count": len(
-                        actual_components
-                    ),
-                    "gage_count": len(
-                        actual_gages
-                    ),
-                    "missing_components": (
-                        missing_components
-                    ),
-                    "unexpected_components": (
-                        unexpected_components
-                    ),
-                    "missing_gages": (
-                        missing_gages
-                    ),
-                },
-                blocking=True,
-            )
-        )
-
-        invalid_id_type = df.loc[
-            ~df["id_type"].eq("system")
-        ].copy()
-
-        invalid_id_path = (
-            manager.write_exception_csv(
-                component=self.name,
-                name="invalid_id_type",
-                df=invalid_id_type,
-            )
-        )
-
-        result.add_check(
-            CheckResult(
-                check_id="upstream_id_type",
-                status=(
-                    "PASS"
-                    if invalid_id_type.empty
-                    else "FAIL"
-                ),
-                message=(
-                    "All upstream records use "
-                    "id_type=system."
-                    if invalid_id_type.empty
-                    else (
-                        "Upstream output contains "
-                        "invalid id_type values."
-                    )
-                ),
-                expected={
-                    "id_type": "system",
-                },
-                actual={
-                    "invalid_rows": len(
-                        invalid_id_type
-                    ),
-                },
-                blocking=True,
-                details=(
-                    {
-                        "exception_file": (
-                            invalid_id_path
-                        )
-                    }
-                    if invalid_id_path
-                    else {}
-                ),
-            )
-        )
-
-        invalid_flow_role = df.loc[
-            ~df["flow_role"].eq(
-                "system_counted"
-            )
-        ].copy()
-
-        invalid_role_path = (
-            manager.write_exception_csv(
-                component=self.name,
-                name="invalid_flow_role",
-                df=invalid_flow_role,
-            )
-        )
-
-        result.add_check(
-            CheckResult(
-                check_id=(
-                    "upstream_flow_role"
-                ),
-                status=(
-                    "PASS"
-                    if invalid_flow_role.empty
-                    else "FAIL"
-                ),
-                message=(
-                    "All upstream records use "
-                    "flow_role=system_counted."
-                    if invalid_flow_role.empty
-                    else (
-                        "Upstream output contains "
-                        "invalid flow roles."
-                    )
-                ),
-                expected={
-                    "flow_role": (
-                        "system_counted"
-                    ),
-                },
-                actual={
-                    "invalid_rows": len(
-                        invalid_flow_role
-                    ),
-                },
-                blocking=True,
-                details=(
-                    {
-                        "exception_file": (
-                            invalid_role_path
-                        )
-                    }
-                    if invalid_role_path
-                    else {}
-                ),
-            )
-        )
 
         expected_dates = pd.date_range(
             pd.Timestamp(start).normalize(),
@@ -765,7 +696,7 @@ class UpstreamGagedComponent(
         result.add_check(
             CheckResult(
                 check_id=(
-                    "upstream_gage_coverage"
+                    "local_gage_coverage"
                 ),
                 status=(
                     "PASS"
@@ -773,13 +704,13 @@ class UpstreamGagedComponent(
                     else "FAIL"
                 ),
                 message=(
-                    "All upstream gages cover "
-                    "the requested period."
+                    "All local gages cover the "
+                    "requested period."
                     if incomplete.empty
                     else (
-                        f"{len(incomplete)} "
-                        "upstream gages have "
-                        "incomplete date coverage."
+                        f"{len(incomplete)} local "
+                        "gages have incomplete "
+                        "date coverage."
                     )
                 ),
                 expected={
@@ -806,19 +737,91 @@ class UpstreamGagedComponent(
             )
         )
 
+        invalid_id_type = df.loc[
+            ~df["id_type"].eq(
+                "watershed"
+            )
+        ].copy()
+
+        result.add_check(
+            CheckResult(
+                check_id=(
+                    "local_gage_id_type"
+                ),
+                status=(
+                    "PASS"
+                    if invalid_id_type.empty
+                    else "FAIL"
+                ),
+                message=(
+                    "All local-gage records use "
+                    "id_type=watershed."
+                    if invalid_id_type.empty
+                    else (
+                        "Local-gage output contains "
+                        "invalid id_type values."
+                    )
+                ),
+                expected={
+                    "id_type": "watershed",
+                },
+                actual={
+                    "invalid_rows": len(
+                        invalid_id_type
+                    ),
+                },
+                blocking=True,
+            )
+        )
+
+        valid_roles = {
+            "direct",
+            "adjusted",
+        }
+
+        invalid_roles = df.loc[
+            ~df["flow_role"].isin(
+                valid_roles
+            )
+        ].copy()
+
+        result.add_check(
+            CheckResult(
+                check_id=(
+                    "local_gage_flow_role"
+                ),
+                status=(
+                    "PASS"
+                    if invalid_roles.empty
+                    else "FAIL"
+                ),
+                message=(
+                    "All local-gage flow roles "
+                    "are valid."
+                    if invalid_roles.empty
+                    else (
+                        "Local-gage output contains "
+                        "invalid flow roles."
+                    )
+                ),
+                expected={
+                    "allowed_flow_roles": (
+                        sorted(valid_roles)
+                    ),
+                },
+                actual={
+                    "invalid_rows": len(
+                        invalid_roles
+                    ),
+                },
+                blocking=True,
+            )
+        )
+
         result.metrics.update(
             {
-                "expected_components": len(
-                    expected_components
-                ),
-                "actual_components": len(
-                    actual_components
-                ),
-                "expected_gages": len(
-                    expected_gages
-                ),
-                "actual_gages": len(
-                    actual_gages
+                "gages_checked": len(
+                    coverage
                 ),
                 "complete_gages": int(
                     coverage[
@@ -836,6 +839,9 @@ class UpstreamGagedComponent(
                     coverage[
                         "zero_value_dates"
                     ].sum()
+                ),
+                "source_failures": len(
+                    source_failures
                 ),
             }
         )
