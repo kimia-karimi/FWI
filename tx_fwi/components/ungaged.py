@@ -19,6 +19,7 @@ REQUIRED_OUT_COLS = [
     "value_afday",
     "flow_role",
     "count_in_basin_sum",
+    "data_as_of",
     "note",
 ]
 
@@ -133,6 +134,8 @@ class UngagedComponent:
             df["flow_role"] = "direct"
 
             df["count_in_basin_sum"] = 1
+            df["data_as_of"] = pd.Timestamp(end)
+
 
             df["note"] = None
 
@@ -219,7 +222,7 @@ class UngagedComponent:
 
             return 0
 
-        n = self.ctx.storage.append(df)
+        n = self.ctx.storage.append(df ,run_start=start, run_end= end)
 
         #
         # Update watermark

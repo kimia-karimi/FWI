@@ -18,6 +18,7 @@ REQUIRED_OUT_COLS = [
     "value_afday",
     "flow_role",
     "count_in_basin_sum",
+    "data_as_of",
     "note",
 ]
 
@@ -73,8 +74,9 @@ class UpstreamGagedComponent:
     # BUILD DATAFRAME
     # ------------------------------------------------------------------
     def build(self, start, end) -> pd.DataFrame:
-
+        print(self.ctx.registry.upstream_json)
         upstream_cfg = self.ctx.registry.load_upstream_gages()
+        print(list(upstream_cfg.keys()))
 
         rows = []
 
@@ -128,6 +130,7 @@ class UpstreamGagedComponent:
                 df["source"] = str(source).lower()
                 df["flow_role"] = "system_counted"
                 df["count_in_basin_sum"] = 1
+                df["data_as_of"] = pd.Timestamp(end)
                 df["note"] = label if label else special
 
                 rows.append(df)
@@ -165,7 +168,7 @@ class UpstreamGagedComponent:
             print("[Upstream] No rows to write.")
             return 0
 
-        n = self.ctx.storage.append(df)
+        n = self.ctx.storage.append(df ,run_start=start, run_end= end)
 
         self.ctx.storage.set_watermark(self.name, df["date"].max())
 

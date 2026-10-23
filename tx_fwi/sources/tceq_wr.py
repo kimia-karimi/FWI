@@ -21,7 +21,13 @@ class TCEQWaterRightsSource:
         self.ctx = ctx
 
     def _fetch_features(self, url: str, where: str = "1=1", out_fields: str = "*", batch_size: int = 2000):
-
+        print (url)
+        count = requests.get(
+            url,
+            verify=certifi.where(),
+            params={"where": where, "returnCountOnly": "true", "f": "json"},
+            timeout=60,
+        ).json()["count"]
         records = []
 
         offset = 0
@@ -37,8 +43,8 @@ class TCEQWaterRightsSource:
                 break
 
             offset += batch_size
-          if len(records) >= count:
-            break
+            if len(records) >= count:
+                break
 
         return records
 

@@ -18,6 +18,7 @@ REQUIRED_OUT_COLS = [
     "value_afday",
     "flow_role",
     "count_in_basin_sum",
+    "data_as_of",
     "note",
 ]
 
@@ -44,7 +45,7 @@ class DiversionComponent:
 
         
         # ---- fetch rights ----
-        rights = self.rights_source.fetch(start=start, end=end)
+        source_data = self.rights_source.fetch(start=start, end=end)
         rights = source_data["rights"]
         pts = source_data["points"]
         df_rights = pd.DataFrame([f["attributes"] for f in rights if "attributes" in f])
@@ -115,7 +116,7 @@ class DiversionComponent:
         # Merge aggregated rights to one coordinate per WR_ID
         wr_coord = wr_merged.merge(points_one[["WR_ID", "LAT_DD", "LONG_DD"]], on="WR_ID", how="left")
         # spatial join to watershed registry
-        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "Estuary", "geometry"]])
+        watersheds = (self.ctx.registry.load_watersheds()[["WS_ID", "Estuary", "HAS_UNGAGE", "geometry"]])
 
         gdf_points = gpd.GeoDataFrame(
             wr_coord,
@@ -123,8 +124,8 @@ class DiversionComponent:
             crs="EPSG:4269")
         )
         watersheds = watersheds.to_crs(gdf_points.crs)
-
-        joined = gpd.sjoin(gdf_points, watersheds, how="left", predicate="intersects")
+        #we only want diversions from ungaged watersheds. the diversion/return from gaged watersheds should already be reflected in their gaged record.
+        joined = gpd.sjoin(gdf_points, watersheds[watersheds["HAS_UNGAGE"] == 1], how="left", predicate="intersects")
         joined = joined.dropna(subset=["WS_ID"]).copy()
         for c in MONTHLY_COLS:
             joined[c] = pd.to_numeric(joined[c], errors="coerce").fillna(0.0)
@@ -225,22 +226,22 @@ class DiversionComponent:
             "DEC_DIV": "Dec",
         }
 
-        check_long = (check.melt(
-            id_vars=["WS_ID", "Estuary", "YEAR"],
-            value_vars=MONTHLY_COLS,
-            var_name="month_col",
-            value_name="diversion_acft"
-        )
-                     )
+        #check_long = (check.melt(
+            #id_vars=["WS_ID", "Estuary", "YEAR"],
+            #value_vars=MONTHLY_COLS,
+           # var_name="month_col",
+            #value_name="diversion_acft"
+        #)
+                     #)
 
-        check_long["Month"] = check_long["month_col"].map(month_lookup)
+        #check_long["Month"] = check_long["month_col"].map(month_lookup)
 
-        check_long = check_long[
-        ["WS_ID", "Estuary", "YEAR", "Month", "diversion_acft"]]
+        #check_long = check_long[
+       # ["WS_ID", "Estuary", "YEAR", "Month", "diversion_acft"]]
 
-        print(check_long.to_string(index=False))
+        #print(check_long.to_string(index=False))
 
-        print("\nAnnual total:", check_long["diversion_acft"].sum()) 
+        #print("\nAnnual total:", check_long["diversion_acft"].sum()) 
 
         
 
@@ -269,6 +270,8 @@ class DiversionComponent:
         daily["value_afday"] = (daily["value"])
 
         daily["flow_role"] = "removal"
+        daily["data_as_of"] = pd.Timestamp(end)
+
 
         daily["count_in_basin_sum"] = 1
 
@@ -277,8 +280,13 @@ class DiversionComponent:
         return daily[REQUIRED_OUT_COLS]
     def run(self, start=None, end=None):
         if start is None:
-            start = pd.Timestamp("2015-01-01")
+            wm = self.ctx.storage.get_watermark( self.name, default = "2015-01-01")
 
+            start = (
+                wm + pd.Timedelta(days=1)
+                if wm is not None
+                else pd.Timestamp("2015-01-01")
+            )
         if end is None:
             end = pd.Timestamp.utcnow().normalize()
 
@@ -290,7 +298,7 @@ class DiversionComponent:
             print("[Diversion] No rows written")
             return 0
 
-        n = self.ctx.storage.append(df)
+        n = self.ctx.storage.append(df, run_start=start, run_end= end)
 
         return n
 

@@ -31,6 +31,7 @@ REQUIRED_OUT_COLS = [
     "value_afday",
     "flow_role",
     "count_in_basin_sum",
+    "data_as_of",
     "note"
 ]
 

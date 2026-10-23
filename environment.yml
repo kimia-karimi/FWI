@@ -39,6 +39,7 @@ dependencies:
   - tqdm
   - python-dateutil
   - pdfplumber
+  - psycopg
 
   # Jupyter
   - jupyterlab

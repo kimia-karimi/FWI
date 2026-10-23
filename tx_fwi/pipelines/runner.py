@@ -6,14 +6,14 @@ from pathlib import Path
 import pandas as pd
 
 from tx_fwi.storage import Storage
-from tx_fwi.registry import Registry
+from tx_fwi.registry.registry import Registry
 from tx_fwi.components.base import RunContext
 
 # Components
 from tx_fwi.components.gaged import LocalGagedComponent
 from tx_fwi.components.gaged_upstream import UpstreamGagedComponent
-from tx_fwi.components.diversion import DiversionflowComponent
-from tx_fwi.components.returns import ReturnFlowComponent
+from tx_fwi.components.diversion import DiversionComponent
+from tx_fwi.components.returns import ReturnComponent
 from tx_fwi.components.ungaged import UngagedComponent
 # ------------------------------------------------------------------
 # DEFAULT PATHS (UNC-friendly)
@@ -89,38 +89,38 @@ def run_all(start: str | None = None, end: str | None = None):
     # --------------------------------------------------------------
     # Component 1: Local gaged (watershed-level)
     # --------------------------------------------------------------
-    #print("\nRunning local gaged component...")
+    print("\nRunning local gaged component...")
 
-    #comp_local = LocalGagedComponent(ctx)
-    #n_local = comp_local.run(start=start_dt, end=end_dt)
+    comp_local = LocalGagedComponent(ctx)
+    n_local = comp_local.run(start=start_dt, end=end_dt)
 
-    #print(f"Local gaged rows written: {n_local:,}")
+    print(f"Local gaged rows written: {n_local:,}")
 
     # --------------------------------------------------------------
     # Component 2: Upstream gaged (system-level)
     # --------------------------------------------------------------
-    ##print("\nRunning upstream gaged component...")
+    print("\nRunning upstream gaged component...")
 
-    #comp_upstream = UpstreamGagedComponent(ctx)
-    #n_upstream = comp_upstream.run(start=start_dt, end=end_dt)
+    comp_upstream = UpstreamGagedComponent(ctx)
+    n_upstream = comp_upstream.run(start=start_dt, end=end_dt)
 
-    #print(f"Upstream gaged rows written: {n_upstream:,}")
+    print(f"Upstream gaged rows written: {n_upstream:,}")
     
     # --------------------------------------------------------------
     # Component 3: Ungaged flow 
     # --------------------------------------------------------------
-    #print("\nRunning ungaged flow component...")
+    print("\nRunning ungaged flow component...")
 
-    #comp_ungaged = UngagedComponent(ctx)
-    #n_ungaged = comp_ungaged.run(start=start_dt, end=end_dt)
-    #print(f"Ungaged rows added: {n_ungaged:,}")
+    comp_ungaged = UngagedComponent(ctx)
+    n_ungaged = comp_ungaged.run(start=start_dt, end=end_dt)
+    print(f"Ungaged rows added: {n_ungaged:,}")
     
     # --------------------------------------------------------------
     # Component 4: Diversion 
     # --------------------------------------------------------------
     print("\nRunning diversion component...")
 
-    comp_diversion = DiversionflowComponent(ctx)
+    comp_diversion = DiversionComponent(ctx)
     n_diversion = comp_diversion.run(start=start_dt, end=end_dt)
 
     print(f"Diversion rows added: {n_diversion:,}")
@@ -129,7 +129,7 @@ def run_all(start: str | None = None, end: str | None = None):
     # --------------------------------------------------------------
     print("\nRunning return component...")
 
-    comp_return = ReturnFlowComponent(ctx)
+    comp_return = ReturnComponent(ctx)
     n_return = comp_return.run(start=start_dt, end=end_dt)
     
     print(f"Return rows added: {n_return:,}")

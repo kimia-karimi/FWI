@@ -18,6 +18,7 @@ REQUIRED_OUT_COLS = [
     "value_afday",
     "flow_role",
     "count_in_basin_sum",
+    "data_as_of",
     "note",
 ]
 
@@ -133,6 +134,7 @@ class LocalGagedComponent:
             else:
                 df["count_in_basin_sum"] = 1
             df["note"] = special if pd.notna(special) else None
+            df["data_as_of"] = pd.Timestamp(end)
 
             rows.append(df)
             print(df.head())
@@ -160,7 +162,7 @@ class LocalGagedComponent:
             print("[Local] No rows written")
             return 0
 
-        n = self.ctx.storage.append(df)
+        n = self.ctx.storage.append(df,run_start=start, run_end= end)
 
         self.ctx.storage.set_watermark(self.name, df["date"].max())
 

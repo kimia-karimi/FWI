@@ -1,5 +1,5 @@
 {
-  "sabine": [
+  "Sabine": [
     {
       "component_id": "sabine_mainstem",
       "source": "usgs",
@@ -28,7 +28,7 @@
       "active_to": null
     }
   ],
-  "brazos": [
+  "Brazos": [
     {
       "component_id": "brazos_mainstem",
       "source": "usgs",
@@ -39,7 +39,7 @@
       "active_to": null
     }
   ],
-  "san_bernard": [
+  "San Bernard": [
     {
       "component_id": "san_bernard_mainstem",
       "source": "usgs",
@@ -50,7 +50,7 @@
       "active_to": null
     }
   ],
-  "matagorda": [
+  "Matagorda": [
     {
       "component_id": "colorado_upstream",
       "source": "usgs",
@@ -70,7 +70,7 @@
       "active_to": null
     }
   ],
-  "guadalupe": [
+  "Guadalupe": [
     {
       "component_id": "guadalupe_mainstem",
       "source": "usgs",
@@ -90,7 +90,7 @@
       "active_to": null
     }
   ],
-  "nueces": [
+  "Nueces": [
     {
       "component_id": "nueces_mainstem",
       "source": "usgs",
@@ -101,7 +101,7 @@
       "active_to": null
     }
   ],
-  "laguna_madre": [
+  "Laguna Madre": [
     {
       "component_id": "petronila_mainstem",
       "source": "usgs",
