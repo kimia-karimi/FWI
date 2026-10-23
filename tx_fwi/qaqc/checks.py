@@ -5,6 +5,214 @@ import pandas as pd
 
 from tx_fwi.qaqc.models import CheckResult
 
+import numpy as np
+
+
+
+def check_numeric_values(
+    df: pd.DataFrame,
+    *,
+    value_col: str = "value_afday",
+    allow_negative: bool = False,
+    check_id: str = "numeric_values",
+) -> tuple[CheckResult, pd.DataFrame]:
+    """
+    Validate a numeric component-output column.
+
+    The check identifies:
+
+    - missing values;
+    - values that cannot be converted to numbers;
+    - positive or negative infinity;
+    - negative values when negative values are not allowed.
+
+    Parameters
+    ----------
+    df
+        Component output to validate.
+
+    value_col
+        Name of the numeric column. For canonical FWI output,
+        this is normally ``value_afday``.
+
+    allow_negative
+        Whether negative values are valid.
+
+        The normal FWI convention stores diversion magnitudes as
+        nonnegative values and identifies their effect with
+        ``flow_role="removal"``. Therefore, this should normally
+        remain False for every component.
+
+    check_id
+        Identifier stored in the run manifest.
+
+    Returns
+    -------
+    tuple[CheckResult, pd.DataFrame]
+        A QA/QC result and the rows that failed validation.
+    """
+    if value_col not in df.columns:
+        return (
+            CheckResult(
+                check_id=check_id,
+                status="FAIL",
+                message=(
+                    f"Required numeric column "
+                    f"{value_col!r} is missing."
+                ),
+                expected={
+                    "value_column": value_col,
+                },
+                actual={
+                    "available_columns": (
+                        df.columns.tolist()
+                    ),
+                },
+                blocking=True,
+            ),
+            pd.DataFrame(),
+        )
+
+    numeric_values = pd.to_numeric(
+        df[value_col],
+        errors="coerce",
+    )
+
+    missing_mask = df[value_col].isna()
+
+    nonnumeric_mask = (
+        df[value_col].notna()
+        & numeric_values.isna()
+    )
+
+    infinite_mask = pd.Series(
+        np.isinf(
+            numeric_values.to_numpy(
+                dtype=float,
+                na_value=np.nan,
+            )
+        ),
+        index=df.index,
+    )
+
+    if allow_negative:
+        negative_mask = pd.Series(
+            False,
+            index=df.index,
+        )
+    else:
+        negative_mask = numeric_values.lt(0)
+
+    invalid_mask = (
+        missing_mask
+        | nonnumeric_mask
+        | infinite_mask
+        | negative_mask
+    )
+
+    invalid_rows = df.loc[
+        invalid_mask
+    ].copy()
+
+    if not invalid_rows.empty:
+        invalid_rows[
+            "_qaqc_numeric_value"
+        ] = numeric_values.loc[
+            invalid_mask
+        ]
+
+        invalid_rows[
+            "_qaqc_missing_value"
+        ] = missing_mask.loc[
+            invalid_mask
+        ]
+
+        invalid_rows[
+            "_qaqc_nonnumeric_value"
+        ] = nonnumeric_mask.loc[
+            invalid_mask
+        ]
+
+        invalid_rows[
+            "_qaqc_infinite_value"
+        ] = infinite_mask.loc[
+            invalid_mask
+        ]
+
+        invalid_rows[
+            "_qaqc_negative_value"
+        ] = negative_mask.loc[
+            invalid_mask
+        ]
+
+    missing_count = int(
+        missing_mask.sum()
+    )
+
+    nonnumeric_count = int(
+        nonnumeric_mask.sum()
+    )
+
+    infinite_count = int(
+        infinite_mask.sum()
+    )
+
+    negative_count = int(
+        negative_mask.sum()
+    )
+
+    passed = invalid_rows.empty
+
+    return (
+        CheckResult(
+            check_id=check_id,
+            status=(
+                "PASS"
+                if passed
+                else "FAIL"
+            ),
+            message=(
+                f"All {value_col} values are "
+                "numeric, finite, and valid."
+                if passed
+                else (
+                    f"{len(invalid_rows)} rows "
+                    f"contain invalid {value_col} "
+                    "values."
+                )
+            ),
+            expected={
+                "missing_values": 0,
+                "nonnumeric_values": 0,
+                "infinite_values": 0,
+                "negative_values": (
+                    "allowed"
+                    if allow_negative
+                    else 0
+                ),
+            },
+            actual={
+                "rows_checked": len(df),
+                "invalid_rows": len(
+                    invalid_rows
+                ),
+                "missing_values": (
+                    missing_count
+                ),
+                "nonnumeric_values": (
+                    nonnumeric_count
+                ),
+                "infinite_values": (
+                    infinite_count
+                ),
+                "negative_values": (
+                    negative_count
+                ),
+            },
+            blocking=True,
+        ),
+        invalid_rows,
+    )
 def check_date_coverage(
     df: pd.DataFrame,
     *,
