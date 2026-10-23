@@ -17,7 +17,7 @@ from tx_fwi.qaqc.manager import RunManager
 
 # Change these imports if your repository uses different
 # configuration, storage, or registry constructors.
-from tx_fwi.config import Config
+#from tx_fwi.config import Config
 from tx_fwi.registry import Registry
 from tx_fwi.storage import Storage
 
