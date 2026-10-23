@@ -51,6 +51,14 @@ def parse_args():
         "--log-root",
         default="logs",
     )
+    parser.add_argument(
+        "--storage-root",
+        default=r"T:\CoastalScience\Data\Hydrology\fwi_master",
+        help=(
+            "Root directory containing the canonical timeseries "
+            "and component watermarks."
+        ),
+        )
 
     return parser.parse_args()
 
@@ -74,7 +82,19 @@ def main() -> int:
     )
 
     # Use the same constructors as the existing production runner.
-    storage = Storage()
+    #storage = Storage()
+    storage_root = Path(
+        args.storage_root
+    ).resolve()
+
+    storage_root.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    storage = Storage(
+        root=storage_root,
+    )
     registry = Registry()
 
     run_manager = RunManager(
