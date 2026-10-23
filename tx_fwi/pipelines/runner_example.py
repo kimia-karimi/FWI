@@ -59,7 +59,14 @@ def parse_args():
             "and component watermarks."
         ),
         )
-
+    parser.add_argument(
+        "--watershed-shp",
+        required=True,
+        help=(
+            "Path to the watershed shapefile used by the "
+            "freshwater-inflow registry."
+        ),
+    )  
     return parser.parse_args()
 
 
@@ -95,7 +102,22 @@ def main() -> int:
     storage = Storage(
         root=storage_root,
     )
-    registry = Registry()
+    watershed_shp = Path(args.watershed_shp).resolve()
+
+    if not watershed_shp.exists():
+        raise FileNotFoundError(
+            "Watershed shapefile was not found: "
+            f"{watershed_shp}"
+        )
+
+    if watershed_shp.suffix.lower() != ".shp":
+        raise ValueError(
+            "--watershed-shp must point to a .shp file. "
+            f"Received: {watershed_shp}"
+        )
+
+
+    registry = Registry(watershed_shp=watershed_shp)
 
     run_manager = RunManager(
         log_root=log_root,
