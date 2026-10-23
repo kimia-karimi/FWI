@@ -117,3 +117,17 @@ class RunManifest:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+from dataclasses import dataclass
+
+
+@dataclass
+class AppendResult:
+    status: str
+    prepared_rows: int
+    appended_rows: int
+    prior_watermark: str | None
+    resulting_watermark: str | None
+    historical_hash_before: str | None
+    historical_hash_after: str | None
+    message: str
