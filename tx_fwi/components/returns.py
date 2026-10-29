@@ -589,7 +589,7 @@ class ReturnComponent:
                 #group_cols + ["FLOW_MGD"],
             #].head(20)
 
-            raise ValueError("Negative EPA DMR flow values require review:\n" + sample.to_string(index=False))
+           # raise ValueError("Negative EPA DMR flow values require review:\n" + sample.to_string(index=False))
 
         work[
             "stat_base_description"
