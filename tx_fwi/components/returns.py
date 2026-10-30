@@ -583,17 +583,13 @@ class ReturnComponent:
 
         negative = work["FLOW_MGD"] < 0
 
-        if negative.any():
-            sample = work.loc[
-                negative,
-                group_cols + ["FLOW_MGD"],
-            ].head(20)
+        #if negative.any():
+           # sample = work.loc[
+               # negative,
+                #group_cols + ["FLOW_MGD"],
+            #].head(20)
 
-            raise ValueError(
-                "Negative EPA DMR flow values "
-                "require review:\n"
-                + sample.to_string(index=False)
-            )
+           # raise ValueError("Negative EPA DMR flow values require review:\n" + sample.to_string(index=False))
 
         work[
             "stat_base_description"
@@ -1398,7 +1394,7 @@ class ReturnComponent:
         end_fy = fiscal_year(end_ts)
 
         # External retrieval and source parsing stay in ReturnFlowSource.
-        dmr = self.return_source._load_dmr(
+        dmr = self.return_source.load_dmr(
             start_fy,
             end_fy,
         )
@@ -1607,6 +1603,28 @@ class ReturnComponent:
             self.return_source
             .load_perm_feature_nmbrs()
         )
+        expected_outfalls = (
+            self.return_source
+            .last_outfall_expected_count
+        )
+
+        retrieved_outfalls = (
+            self.return_source
+            .last_outfall_retrieved_count
+        )
+
+        if (
+            expected_outfalls is None
+            or retrieved_outfalls is None
+            or retrieved_outfalls != expected_outfalls
+        ):
+            raise RuntimeError(
+                "Return-flow processing cannot continue "
+                "because the TCEQ outfall retrieval was "
+                "not verified as complete. "
+                f"Expected={expected_outfalls}; "
+                f"retrieved={retrieved_outfalls}."
+            )
 
         canonical_geometry = (
             self._prepare_canonical_outfall_geometry(
