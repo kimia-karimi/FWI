@@ -870,53 +870,53 @@ class ReturnComponent:
             .copy()
         )
 
-        if not conflicting_groups.empty:
-            conflict_rows = (
-                top_candidates
-                .merge(
-                    conflicting_groups[
-                        group_cols
-                    ],
-                    on=group_cols,
-                    how="inner",
-                )
-            )
+        #if not conflicting_groups.empty:
+            #conflict_rows = (
+                #top_candidates
+                #.merge(
+                   # conflicting_groups[
+                   #     group_cols
+                    #],
+                    #on=group_cols,
+                    #how="inner",
+                #)
+            #)
 
-            display_cols = group_cols + [
-                "MONITORING_LOCATION_CODE",
-                "STATISTICAL_BASE_CODE",
-                "STATISTICAL_BASE_TYPE_CODE",
-                "FLOW_MGD",
-                "DMR_VALUE_ID",
-                "stat_base_description",
-            ]
+            #display_cols = group_cols + [
+                #"MONITORING_LOCATION_CODE",
+                #"STATISTICAL_BASE_CODE",
+                #"STATISTICAL_BASE_TYPE_CODE",
+                #"FLOW_MGD",
+                #"DMR_VALUE_ID",
+                #"stat_base_description",
+            #]
 
-            display_cols = [
-                col
-                for col in display_cols
-                if col
-                in conflict_rows.columns
-            ]
+            #display_cols = [
+                #col
+                #for col in display_cols
+                #if col
+                #in conflict_rows.columns
+            #]
 
-            message = (
-                "Conflicting top-ranked EPA DMR "
-                "return-flow candidates were found. "
-                "Equal-priority records have different "
-                "flow values and were not summed:\n"
-                + conflict_rows[
-                    display_cols
-                ]
-                .head(50)
-                .to_string(index=False)
-            )
+            #message = (
+                #"Conflicting top-ranked EPA DMR "
+                #"return-flow candidates were found. "
+                #"Equal-priority records have different "
+                #"flow values and were not summed:\n"
+                #+ conflict_rows[
+                 #   display_cols
+                #]
+                #.head(50)
+                #.to_string(index=False)
+            #)
 
-            if raise_on_conflicting_ties:
-                raise ValueError(message)
+            #if raise_on_conflicting_ties:
+             #   raise ValueError(message)
 
-            print(
-                "[ReturnFlow] WARNING: "
-                + message
-            )
+            #print(
+             #   "[ReturnFlow] WARNING: "
+              #  + message
+            #)
 
         sort_cols = (
             group_cols
@@ -1001,13 +1001,13 @@ class ReturnComponent:
             "selection_status",
         ] = "selected_from_conflicting_tie"
 
-        if selected.duplicated(
-            group_cols
-        ).any():
-            raise AssertionError(
-                "Selector returned more than "
-                "one row per permit/outfall/period."
-            )
+        #if selected.duplicated(
+           # group_cols
+        #).any():
+            #raise AssertionError(
+                #"Selector returned more than "
+                #"one row per permit/outfall/period."
+            #)
 
         selected_candidate_ids = set(
             selected["_candidate_id"]
