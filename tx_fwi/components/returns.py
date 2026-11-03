@@ -1483,11 +1483,11 @@ class ReturnComponent:
             )
         )
 
-        if WRITE_DEBUG_FILES:
-            selection_audit.to_csv(
-                "return_dmr_selection_audit.csv",
-                index=False,
-            )
+        #if WRITE_DEBUG_FILES:
+            #selection_audit.to_csv(
+               # "return_dmr_selection_audit.csv",
+               # index=False,
+            #)
 
         if selected_dmr.empty:
             print(
