@@ -80,9 +80,9 @@ class DiversionComponent:
         # normalize and join
         points_div["LAT_DD"] = pd.to_numeric(points_div["LAT_DD"], errors="coerce").round(4)
         points_div["LONG_DD"] = pd.to_numeric(points_div["LONG_DD"], errors="coerce").round(4)
-        points_div = points_div.dropna(subset=["WR_ID", "LAT_DD", "LONG_DD", "OWN_NAME"]).copy()
+        points_div = points_div.dropna(subset=["WR_ID", "LAT_DD", "LONG_DD"]).copy()
         # Remove exact duplicate coordinates for the same WR_ID and OWN_NAME.
-        points_div = points_div.drop_duplicates(subset=["WR_ID", "LAT_DD", "LONG_DD", "OWN_NAME"] ).copy()
+        points_div = points_div.drop_duplicates(subset=["WR_ID", "LAT_DD", "LONG_DD"] ).copy()
         # Debug: how many diversion-point coordinates per WR_ID?
         point_counts = (points_div .groupby("WR_ID") .size() .reset_index(name="n_points") .sort_values("n_points", ascending=False))
 
