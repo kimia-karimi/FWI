@@ -1390,7 +1390,6 @@ class ReturnComponent:
                 "FLOW_ACFT_MONTH"
             ].sum()
         )
-        
     def _classify_coastal_spatial_scope(
     self,
     points: gpd.GeoDataFrame,
