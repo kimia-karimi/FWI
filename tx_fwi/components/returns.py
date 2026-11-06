@@ -29,7 +29,16 @@ REQUIRED_OUT_COLS = [
 ]
 
 
-WRITE_DEBUG_FILES = False
+WRITE_DEBUG_FILES = True
+# Outfalls outside an eligible coastal watershed but within this
+# distance are retained for coastal QA/QC review.
+COASTAL_REVIEW_DISTANCE_MILES = 10.0
+
+# NAD83 / Conus Albers. Units are meters and are appropriate for
+# distance and buffer operations across Texas.
+DISTANCE_CRS = "EPSG:5070"
+
+METERS_PER_MILE = 1609.344
 
 
 MONITORING_LOCATION_PRIORITY = {
@@ -1381,7 +1390,252 @@ class ReturnComponent:
                 "FLOW_ACFT_MONTH"
             ].sum()
         )
+        
+    def _classify_coastal_spatial_scope(
+    self,
+    points: gpd.GeoDataFrame,
+    watersheds: gpd.GeoDataFrame,
+    *,
+    distance_miles: float = (
+        COASTAL_REVIEW_DISTANCE_MILES
+    ),
+) -> tuple[
+    gpd.GeoDataFrame,
+    gpd.GeoDataFrame,
+    gpd.GeoDataFrame,
+]:
+    """
+    Classify return-flow points by relevance to the coastal study area.
 
+    Returns
+    -------
+    coastal_points
+        Points intersecting an eligible coastal watershed.
+
+    coastal_nearby
+        Points outside the eligible watersheds but within the configured
+        coastal review distance. These records are for QA/QC only and
+        must not be included automatically in the return-flow calculation.
+
+    outside_scope
+        Points farther from the eligible coastal watersheds than the
+        configured review distance.
+    """
+    if not isinstance(
+        points,
+        gpd.GeoDataFrame,
+    ):
+        raise TypeError(
+            "points must be a GeoDataFrame."
+        )
+
+    if not isinstance(
+        watersheds,
+        gpd.GeoDataFrame,
+    ):
+        raise TypeError(
+            "watersheds must be a GeoDataFrame."
+        )
+
+    if points.crs is None:
+        raise ValueError(
+            "Return-flow points do not have a CRS."
+        )
+
+    if watersheds.crs is None:
+        raise ValueError(
+            "Coastal watersheds do not have a CRS."
+        )
+
+    if distance_miles < 0:
+        raise ValueError(
+            "Coastal review distance cannot be negative."
+        )
+
+    required_watershed_cols = [
+        "WS_ID",
+        "Estuary",
+        "HAS_UNGAGE",
+        "geometry",
+    ]
+
+    missing_cols = [
+        col
+        for col in required_watershed_cols
+        if col not in watersheds.columns
+    ]
+
+    if missing_cols:
+        raise KeyError(
+            "Watershed data are missing required columns: "
+            + ", ".join(missing_cols)
+        )
+
+    work_points = points.copy()
+
+    # Invalid or missing geometries cannot be classified spatially.
+    work_points = work_points.loc[
+        work_points.geometry.notna()
+        & ~work_points.geometry.is_empty
+    ].copy()
+
+    if work_points.empty:
+        empty = work_points.copy()
+
+        return (
+            empty,
+            empty.copy(),
+            empty.copy(),
+        )
+
+    eligible_watersheds = watersheds.loc[
+        watersheds["HAS_UNGAGE"].eq(1)
+        & watersheds.geometry.notna()
+        & ~watersheds.geometry.is_empty
+    ].copy()
+
+    if eligible_watersheds.empty:
+        raise ValueError(
+            "No eligible coastal watersheds were found "
+            "with HAS_UNGAGE = 1."
+        )
+
+    # Perform the exact intersection test in a common CRS.
+    eligible_for_join = (
+        eligible_watersheds
+        .to_crs(work_points.crs)
+    )
+
+    exact_match = gpd.sjoin(
+        work_points,
+        eligible_for_join[
+            [
+                "WS_ID",
+                "Estuary",
+                "geometry",
+            ]
+        ],
+        how="left",
+        predicate="intersects",
+    )
+
+    exact_point_indexes = (
+        exact_match.loc[
+            exact_match["WS_ID"].notna()
+        ]
+        .index
+        .unique()
+    )
+
+    coastal_points = work_points.loc[
+        work_points.index.isin(
+            exact_point_indexes
+        )
+    ].copy()
+
+    nonintersecting = work_points.loc[
+        ~work_points.index.isin(
+            exact_point_indexes
+        )
+    ].copy()
+
+    if nonintersecting.empty:
+        coastal_points[
+            "coastal_scope_status"
+        ] = "intersects_eligible_coastal_watershed"
+
+        empty = nonintersecting.copy()
+
+        return (
+            coastal_points,
+            empty,
+            empty.copy(),
+        )
+
+    # Distance calculations must use a projected CRS.
+    watershed_distance = (
+        eligible_watersheds
+        .to_crs(DISTANCE_CRS)
+    )
+
+    nonintersecting_distance = (
+        nonintersecting
+        .to_crs(DISTANCE_CRS)
+    )
+
+    # The union represents the full eligible coastal study area.
+    coastal_union = (
+        watershed_distance
+        .geometry
+        .union_all()
+    )
+
+    nonintersecting_distance[
+        "distance_to_coastal_watershed_m"
+    ] = (
+        nonintersecting_distance
+        .geometry
+        .distance(coastal_union)
+    )
+
+    nonintersecting_distance[
+        "distance_to_coastal_watershed_miles"
+    ] = (
+        nonintersecting_distance[
+            "distance_to_coastal_watershed_m"
+        ]
+        / METERS_PER_MILE
+    )
+
+    nearby_mask = (
+        nonintersecting_distance[
+            "distance_to_coastal_watershed_miles"
+        ]
+        <= distance_miles
+    )
+
+    coastal_nearby = (
+        nonintersecting_distance.loc[
+            nearby_mask
+        ]
+        .to_crs(work_points.crs)
+        .copy()
+    )
+
+    outside_scope = (
+        nonintersecting_distance.loc[
+            ~nearby_mask
+        ]
+        .to_crs(work_points.crs)
+        .copy()
+    )
+
+    coastal_points[
+        "coastal_scope_status"
+    ] = "intersects_eligible_coastal_watershed"
+
+    coastal_points[
+        "distance_to_coastal_watershed_m"
+    ] = 0.0
+
+    coastal_points[
+        "distance_to_coastal_watershed_miles"
+    ] = 0.0
+
+    coastal_nearby[
+        "coastal_scope_status"
+    ] = "near_coastal_watershed_unresolved"
+
+    outside_scope[
+        "coastal_scope_status"
+    ] = "outside_coastal_review_area"
+
+    return (
+        coastal_points,
+        coastal_nearby,
+        outside_scope,
+    )
+    
     def build(
         self,
         start,
@@ -1718,51 +1972,128 @@ class ReturnComponent:
         )
 
         (
-            assigned,
-            spatial_unresolved,
-            spatial_audit,
-        ) = assign_geometries_to_watersheds(
+            coastal_points,
+            coastal_nearby_unresolved,
+            outside_coastal_scope,
+        ) = self._classify_coastal_spatial_scope(
             points,
             watersheds,
-            record_cols=record_cols,
-            ws_col="WS_ID",
-            estuary_col="Estuary",
-            include_flag_col="HAS_UNGAGE",
-            include_flag_value=1,
-            predicate="intersects",
+            distance_miles= (COASTAL_REVIEW_DISTANCE_MILES),
+        )
+        print("[ReturnFlow] Located outfall-period rows "
+              "intersecting eligible coastal watersheds:",
+              len(coastal_points),
+             )
+
+        print(
+            "[ReturnFlow] Located outfall-period rows "
+            "near the coastal study area but unresolved:",
+            len(coastal_nearby_unresolved),
         )
 
-        if WRITE_DEBUG_FILES:
-            spatial_audit.to_csv(
-                "return_dmr_spatial_"
-                "assignment_audit.csv",
-                index=False,
+        print(
+            "[ReturnFlow] Located outfall-period rows "
+            "outside the coastal review area:",
+            len(outside_coastal_scope),
+        )
+        if coastal_points.empty:
+            assigned = coastal_points.copy()
+            spatial_unresolved = (
+                coastal_nearby_unresolved.copy()
+            )
+            spatial_audit = pd.concat(
+                [
+                    coastal_nearby_unresolved,
+                    outside_coastal_scope,
+                ],
+                ignore_index=True,
+            )
+        else:
+            (
+                assigned,
+                unexpected_spatial_unresolved,
+                spatial_audit,
+            ) = assign_geometries_to_watersheds(
+                coastal_points,
+                watersheds,
+                record_cols=record_cols,
+                ws_col="WS_ID",
+                estuary_col="Estuary",
+                include_flag_col="HAS_UNGAGE",
+                include_flag_value=1,
+                predicate="intersects",
+        
             )
 
-            spatial_unresolved.to_csv(
-                "return_dmr_spatial_"
-                "unresolved.csv",
-                index=False,
+    # These points had already passed the exact coastal intersection
+    # test. Any unresolved result here indicates a geometry, CRS, or
+    # boundary-processing inconsistency that should be reviewed.
+            if not unexpected_spatial_unresolved.empty:
+                unexpected_spatial_unresolved = (
+                    unexpected_spatial_unresolved
+                    .copy()
+                )
+
+                unexpected_spatial_unresolved[
+                    "coastal_scope_status"
+                 ] = (
+                    "unexpected_unresolved_after_"
+                    "coastal_intersection"
+                 )
+
+            spatial_unresolved = pd.concat(
+                [
+                    coastal_nearby_unresolved,
+                    unexpected_spatial_unresolved,
+                ],
+                ignore_index=True,
             )
 
-        if not spatial_unresolved.empty:
-            print(
-                "[ReturnFlow] Spatially "
-                "unresolved selected "
-                "outfall-period rows: "
-                f"{len(spatial_unresolved)}"
+            spatial_audit = pd.concat(
+                [
+                    spatial_audit,
+                    coastal_nearby_unresolved,
+                    outside_coastal_scope,
+                ],
+                ignore_index=True,
             )
 
-        if assigned.empty:
-            print(
-                "[ReturnFlow] No selected outfalls "
-                "were assigned to eligible "
-                "ungaged watersheds"
-            )
+if WRITE_DEBUG_FILES:
+    spatial_audit.to_csv(
+        "return_dmr_spatial_assignment_audit.csv",
+        index=False,
+    )
 
-            return pd.DataFrame(
-                columns=REQUIRED_OUT_COLS
-            )
+    spatial_unresolved.to_csv(
+        "return_dmr_coastal_unresolved.csv",
+        index=False,
+    )
+
+    outside_coastal_scope.to_csv(
+        "return_dmr_outside_coastal_scope.csv",
+        index=False,
+    )
+
+if not spatial_unresolved.empty:
+    print(
+        "[ReturnFlow] Coastal or near-coastal "
+        "unresolved selected outfall-period rows: "
+        f"{len(spatial_unresolved)}"
+    )
+
+if assigned.empty:
+    print(
+        "[ReturnFlow] No selected outfalls "
+        "were assigned to eligible "
+        "ungaged coastal watersheds"
+    )
+
+    return pd.DataFrame(
+        columns=REQUIRED_OUT_COLS
+    )
+
+
+        
 
         spatial_duplicates = (
             assigned.duplicated(
@@ -1828,11 +2159,17 @@ class ReturnComponent:
                 record_cols,
             )
         )
-
+        outside_scope_volume = (
+            self._unique_volume(
+                outside_coastal_scope,
+                record_cols,
+            )
+        )
         accounted_volume = (
             assigned_volume
             + geometry_unresolved_volume
             + spatial_unresolved_volume
+            + outside_scope_volume
         )
 
         tolerance = max(
@@ -1853,7 +2190,9 @@ class ReturnComponent:
                 "geometry_unresolved="
                 f"{geometry_unresolved_volume}, "
                 "spatial_unresolved="
-                f"{spatial_unresolved_volume}."
+                f"{spatial_unresolved_volume}, "
+                "outside_coastal_scope="
+                f"{outside_scope_volume}."
             )
 
         assigned[
