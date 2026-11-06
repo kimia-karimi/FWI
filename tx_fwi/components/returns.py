@@ -29,13 +29,16 @@ REQUIRED_OUT_COLS = [
 ]
 
 
-WRITE_DEBUG_FILES = True
+# Keep this False until debug files are redirected to a local
+# directory. Previous writes to the mapped network drive failed.
+WRITE_DEBUG_FILES = False
+
 # Outfalls outside an eligible coastal watershed but within this
 # distance are retained for coastal QA/QC review.
 COASTAL_REVIEW_DISTANCE_MILES = 10.0
 
 # NAD83 / Conus Albers. Units are meters and are appropriate for
-# distance and buffer operations across Texas.
+# distance calculations across Texas.
 DISTANCE_CRS = "EPSG:5070"
 
 METERS_PER_MILE = 1609.344
@@ -592,13 +595,19 @@ class ReturnComponent:
 
         negative = work["FLOW_MGD"] < 0
 
-        #if negative.any():
-           # sample = work.loc[
-               # negative,
-                #group_cols + ["FLOW_MGD"],
-            #].head(20)
-
-           # raise ValueError("Negative EPA DMR flow values require review:\n" + sample.to_string(index=False))
+        # Negative values are retained under the current methodology.
+        # The following validation can be enabled if needed.
+        #
+        # if negative.any():
+        #     sample = work.loc[
+        #         negative,
+        #         group_cols + ["FLOW_MGD"],
+        #     ].head(20)
+        #
+        #     raise ValueError(
+        #         "Negative EPA DMR flow values require review:\n"
+        #         + sample.to_string(index=False)
+        #     )
 
         work[
             "stat_base_description"
@@ -879,53 +888,52 @@ class ReturnComponent:
             .copy()
         )
 
-        #if not conflicting_groups.empty:
-            #conflict_rows = (
-                #top_candidates
-                #.merge(
-                   # conflicting_groups[
-                   #     group_cols
-                    #],
-                    #on=group_cols,
-                    #how="inner",
-                #)
-            #)
+        if not conflicting_groups.empty:
+            conflict_rows = (
+                top_candidates
+                .merge(
+                    conflicting_groups[
+                        group_cols
+                    ],
+                    on=group_cols,
+                    how="inner",
+                )
+            )
 
-            #display_cols = group_cols + [
-                #"MONITORING_LOCATION_CODE",
-                #"STATISTICAL_BASE_CODE",
-                #"STATISTICAL_BASE_TYPE_CODE",
-                #"FLOW_MGD",
-                #"DMR_VALUE_ID",
-                #"stat_base_description",
-            #]
+            display_cols = group_cols + [
+                "MONITORING_LOCATION_CODE",
+                "STATISTICAL_BASE_CODE",
+                "STATISTICAL_BASE_TYPE_CODE",
+                "FLOW_MGD",
+                "DMR_VALUE_ID",
+                "stat_base_description",
+            ]
 
-            #display_cols = [
-                #col
-                #for col in display_cols
-                #if col
-                #in conflict_rows.columns
-            #]
+            display_cols = [
+                col
+                for col in display_cols
+                if col in conflict_rows.columns
+            ]
 
-            #message = (
-                #"Conflicting top-ranked EPA DMR "
-                #"return-flow candidates were found. "
-                #"Equal-priority records have different "
-                #"flow values and were not summed:\n"
-                #+ conflict_rows[
-                 #   display_cols
-                #]
-                #.head(50)
-                #.to_string(index=False)
-            #)
+            message = (
+                "Conflicting top-ranked EPA DMR "
+                "return-flow candidates were found. "
+                "Equal-priority records have different "
+                "flow values and were not summed:\n"
+                + conflict_rows[
+                    display_cols
+                ]
+                .head(50)
+                .to_string(index=False)
+            )
 
-            #if raise_on_conflicting_ties:
-             #   raise ValueError(message)
+            if raise_on_conflicting_ties:
+                raise ValueError(message)
 
-            #print(
-             #   "[ReturnFlow] WARNING: "
-              #  + message
-            #)
+            print(
+                "[ReturnFlow] WARNING: "
+                + message
+            )
 
         sort_cols = (
             group_cols
@@ -1010,13 +1018,13 @@ class ReturnComponent:
             "selection_status",
         ] = "selected_from_conflicting_tie"
 
-        #if selected.duplicated(
-           # group_cols
-        #).any():
-            #raise AssertionError(
-                #"Selector returned more than "
-                #"one row per permit/outfall/period."
-            #)
+        if selected.duplicated(
+            group_cols
+        ).any():
+            raise AssertionError(
+                "Selector returned more than "
+                "one row per permit/outfall/period."
+            )
 
         selected_candidate_ids = set(
             selected["_candidate_id"]
@@ -1109,8 +1117,6 @@ class ReturnComponent:
                 "EPSG:4326"
             )
 
-        # Preserve the original TCEQ permit ID before
-        # PERMIT_NUM is reused as the normalized NPDES key.
         if "PERMIT_NUM" in outfalls.columns:
             outfalls[
                 "TCEQ_PERMIT_NUM"
@@ -1390,6 +1396,7 @@ class ReturnComponent:
                 "FLOW_ACFT_MONTH"
             ].sum()
         )
+
     def _classify_coastal_spatial_scope(
         self,
         points: gpd.GeoDataFrame,
@@ -1412,229 +1419,229 @@ class ReturnComponent:
             Points intersecting an eligible coastal watershed.
 
         coastal_nearby
-            Points outside the eligible watersheds but within the configured
-            coastal review distance. These records are for QA/QC only and
-            must not be included automatically in the return-flow calculation.
+            Points outside eligible coastal watersheds but within the
+            configured coastal review distance. These records are retained
+            for QA/QC only and are not automatically included in the
+            return-flow calculation.
 
         outside_scope
             Points farther from the eligible coastal watersheds than the
             configured review distance.
         """
-    if not isinstance(
-        points,
-        gpd.GeoDataFrame,
-    ):
-        raise TypeError(
-            "points must be a GeoDataFrame."
-        )
+        if not isinstance(
+            points,
+            gpd.GeoDataFrame,
+        ):
+            raise TypeError(
+                "points must be a GeoDataFrame."
+            )
 
-    if not isinstance(
-        watersheds,
-        gpd.GeoDataFrame,
-    ):
-        raise TypeError(
-            "watersheds must be a GeoDataFrame."
-        )
+        if not isinstance(
+            watersheds,
+            gpd.GeoDataFrame,
+        ):
+            raise TypeError(
+                "watersheds must be a GeoDataFrame."
+            )
 
-    if points.crs is None:
-        raise ValueError(
-            "Return-flow points do not have a CRS."
-        )
+        if points.crs is None:
+            raise ValueError(
+                "Return-flow points do not have a CRS."
+            )
 
-    if watersheds.crs is None:
-        raise ValueError(
-            "Coastal watersheds do not have a CRS."
-        )
+        if watersheds.crs is None:
+            raise ValueError(
+                "Coastal watersheds do not have a CRS."
+            )
 
-    if distance_miles < 0:
-        raise ValueError(
-            "Coastal review distance cannot be negative."
-        )
+        if distance_miles < 0:
+            raise ValueError(
+                "Coastal review distance cannot be negative."
+            )
 
-    required_watershed_cols = [
-        "WS_ID",
-        "Estuary",
-        "HAS_UNGAGE",
-        "geometry",
-    ]
-
-    missing_cols = [
-        col
-        for col in required_watershed_cols
-        if col not in watersheds.columns
-    ]
-
-    if missing_cols:
-        raise KeyError(
-            "Watershed data are missing required columns: "
-            + ", ".join(missing_cols)
-        )
-
-    work_points = points.copy()
-
-    # Invalid or missing geometries cannot be classified spatially.
-    work_points = work_points.loc[
-        work_points.geometry.notna()
-        & ~work_points.geometry.is_empty
-    ].copy()
-
-    if work_points.empty:
-        empty = work_points.copy()
-
-        return (
-            empty,
-            empty.copy(),
-            empty.copy(),
-        )
-
-    eligible_watersheds = watersheds.loc[
-        watersheds["HAS_UNGAGE"].eq(1)
-        & watersheds.geometry.notna()
-        & ~watersheds.geometry.is_empty
-    ].copy()
-
-    if eligible_watersheds.empty:
-        raise ValueError(
-            "No eligible coastal watersheds were found "
-            "with HAS_UNGAGE = 1."
-        )
-
-    # Perform the exact intersection test in a common CRS.
-    eligible_for_join = (
-        eligible_watersheds
-        .to_crs(work_points.crs)
-    )
-
-    exact_match = gpd.sjoin(
-        work_points,
-        eligible_for_join[
-            [
-                "WS_ID",
-                "Estuary",
-                "geometry",
-            ]
-        ],
-        how="left",
-        predicate="intersects",
-    )
-
-    exact_point_indexes = (
-        exact_match.loc[
-            exact_match["WS_ID"].notna()
+        required_watershed_cols = [
+            "WS_ID",
+            "Estuary",
+            "HAS_UNGAGE",
+            "geometry",
         ]
-        .index
-        .unique()
-    )
 
-    coastal_points = work_points.loc[
-        work_points.index.isin(
-            exact_point_indexes
+        missing_cols = [
+            col
+            for col in required_watershed_cols
+            if col not in watersheds.columns
+        ]
+
+        if missing_cols:
+            raise KeyError(
+                "Watershed data are missing required columns: "
+                + ", ".join(missing_cols)
+            )
+
+        work_points = points.copy()
+
+        work_points = work_points.loc[
+            work_points.geometry.notna()
+            & ~work_points.geometry.is_empty
+        ].copy()
+
+        if work_points.empty:
+            empty = work_points.copy()
+
+            return (
+                empty,
+                empty.copy(),
+                empty.copy(),
+            )
+
+        eligible_watersheds = watersheds.loc[
+            watersheds["HAS_UNGAGE"].eq(1)
+            & watersheds.geometry.notna()
+            & ~watersheds.geometry.is_empty
+        ].copy()
+
+        if eligible_watersheds.empty:
+            raise ValueError(
+                "No eligible coastal watersheds were found "
+                "with HAS_UNGAGE = 1."
+            )
+
+        eligible_for_join = (
+            eligible_watersheds
+            .to_crs(work_points.crs)
         )
-    ].copy()
 
-    nonintersecting = work_points.loc[
-        ~work_points.index.isin(
-            exact_point_indexes
+        exact_match = gpd.sjoin(
+            work_points,
+            eligible_for_join[
+                [
+                    "WS_ID",
+                    "Estuary",
+                    "geometry",
+                ]
+            ],
+            how="left",
+            predicate="intersects",
         )
-    ].copy()
 
-    if nonintersecting.empty:
+        exact_point_indexes = (
+            exact_match.loc[
+                exact_match["WS_ID"].notna()
+            ]
+            .index
+            .unique()
+        )
+
+        coastal_points = work_points.loc[
+            work_points.index.isin(
+                exact_point_indexes
+            )
+        ].copy()
+
+        nonintersecting = work_points.loc[
+            ~work_points.index.isin(
+                exact_point_indexes
+            )
+        ].copy()
+
         coastal_points[
             "coastal_scope_status"
-        ] = "intersects_eligible_coastal_watershed"
+        ] = (
+            "intersects_eligible_coastal_watershed"
+        )
 
-        empty = nonintersecting.copy()
+        coastal_points[
+            "distance_to_coastal_watershed_m"
+        ] = 0.0
+
+        coastal_points[
+            "distance_to_coastal_watershed_miles"
+        ] = 0.0
+
+        if nonintersecting.empty:
+            empty = nonintersecting.copy()
+
+            return (
+                coastal_points,
+                empty,
+                empty.copy(),
+            )
+
+        watershed_distance = (
+            eligible_watersheds
+            .to_crs(DISTANCE_CRS)
+        )
+
+        nonintersecting_distance = (
+            nonintersecting
+            .to_crs(DISTANCE_CRS)
+        )
+
+        # unary_union is compatible with older GeoPandas/Shapely.
+        coastal_union = (
+            watershed_distance
+            .geometry
+            .unary_union
+        )
+
+        nonintersecting_distance[
+            "distance_to_coastal_watershed_m"
+        ] = (
+            nonintersecting_distance
+            .geometry
+            .distance(coastal_union)
+        )
+
+        nonintersecting_distance[
+            "distance_to_coastal_watershed_miles"
+        ] = (
+            nonintersecting_distance[
+                "distance_to_coastal_watershed_m"
+            ]
+            / METERS_PER_MILE
+        )
+
+        nearby_mask = (
+            nonintersecting_distance[
+                "distance_to_coastal_watershed_miles"
+            ]
+            <= distance_miles
+        )
+
+        coastal_nearby = (
+            nonintersecting_distance.loc[
+                nearby_mask
+            ]
+            .to_crs(work_points.crs)
+            .copy()
+        )
+
+        outside_scope = (
+            nonintersecting_distance.loc[
+                ~nearby_mask
+            ]
+            .to_crs(work_points.crs)
+            .copy()
+        )
+
+        coastal_nearby[
+            "coastal_scope_status"
+        ] = (
+            "near_coastal_watershed_unresolved"
+        )
+
+        outside_scope[
+            "coastal_scope_status"
+        ] = (
+            "outside_coastal_review_area"
+        )
 
         return (
             coastal_points,
-            empty,
-            empty.copy(),
+            coastal_nearby,
+            outside_scope,
         )
 
-    # Distance calculations must use a projected CRS.
-    watershed_distance = (
-        eligible_watersheds
-        .to_crs(DISTANCE_CRS)
-    )
-
-    nonintersecting_distance = (
-        nonintersecting
-        .to_crs(DISTANCE_CRS)
-    )
-
-    # The union represents the full eligible coastal study area.
-    coastal_union = (
-        watershed_distance
-        .geometry
-        .union_all()
-    )
-
-    nonintersecting_distance[
-        "distance_to_coastal_watershed_m"
-    ] = (
-        nonintersecting_distance
-        .geometry
-        .distance(coastal_union)
-    )
-
-    nonintersecting_distance[
-        "distance_to_coastal_watershed_miles"
-    ] = (
-        nonintersecting_distance[
-            "distance_to_coastal_watershed_m"
-        ]
-        / METERS_PER_MILE
-    )
-
-    nearby_mask = (
-        nonintersecting_distance[
-            "distance_to_coastal_watershed_miles"
-        ]
-        <= distance_miles
-    )
-
-    coastal_nearby = (
-        nonintersecting_distance.loc[
-            nearby_mask
-        ]
-        .to_crs(work_points.crs)
-        .copy()
-    )
-
-    outside_scope = (
-        nonintersecting_distance.loc[
-            ~nearby_mask
-        ]
-        .to_crs(work_points.crs)
-        .copy()
-    )
-
-    coastal_points[
-        "coastal_scope_status"
-    ] = "intersects_eligible_coastal_watershed"
-
-    coastal_points[
-        "distance_to_coastal_watershed_m"
-    ] = 0.0
-
-    coastal_points[
-        "distance_to_coastal_watershed_miles"
-    ] = 0.0
-
-    coastal_nearby[
-        "coastal_scope_status"
-    ] = "near_coastal_watershed_unresolved"
-
-    outside_scope[
-        "coastal_scope_status"
-    ] = "outside_coastal_review_area"
-
-    return (
-        coastal_points,
-        coastal_nearby,
-        outside_scope,
-    )
-    
     def build(
         self,
         start,
@@ -1646,7 +1653,6 @@ class ReturnComponent:
         start_fy = fiscal_year(start_ts)
         end_fy = fiscal_year(end_ts)
 
-        # External retrieval and source parsing stay in ReturnFlowSource.
         dmr = self.return_source.load_dmr(
             start_fy,
             end_fy,
@@ -1736,11 +1742,11 @@ class ReturnComponent:
             )
         )
 
-        #if WRITE_DEBUG_FILES:
-            #selection_audit.to_csv(
-               # "return_dmr_selection_audit.csv",
-               # index=False,
-            #)
+        if WRITE_DEBUG_FILES:
+            selection_audit.to_csv(
+                "return_dmr_selection_audit.csv",
+                index=False,
+            )
 
         if selected_dmr.empty:
             print(
@@ -1851,11 +1857,11 @@ class ReturnComponent:
                 index=False,
             )
 
-        # TCEQ outfall retrieval remains in ReturnFlowSource.
         outfalls = (
             self.return_source
             .load_perm_feature_nmbrs()
         )
+
         expected_outfalls = (
             self.return_source
             .last_outfall_expected_count
@@ -1895,8 +1901,6 @@ class ReturnComponent:
                 columns=REQUIRED_OUT_COLS
             )
 
-        # Attach exact geometry or borrow a sibling-outfall
-        # geometry from the same permit.
         (
             geometry_assigned,
             geometry_unresolved,
@@ -1918,6 +1922,15 @@ class ReturnComponent:
                 "geometry_donor_outfall"
             ),
         )
+
+        if not geometry_unresolved.empty:
+            geometry_unresolved = (
+                geometry_unresolved.copy()
+            )
+
+            geometry_unresolved[
+                "coastal_scope_status"
+            ] = "unresolved_location_unknown"
 
         if WRITE_DEBUG_FILES:
             geometry_assigned.to_csv(
@@ -1977,12 +1990,16 @@ class ReturnComponent:
         ) = self._classify_coastal_spatial_scope(
             points,
             watersheds,
-            distance_miles= (COASTAL_REVIEW_DISTANCE_MILES),
+            distance_miles=(
+                COASTAL_REVIEW_DISTANCE_MILES
+            ),
         )
-        print("[ReturnFlow] Located outfall-period rows "
-              "intersecting eligible coastal watersheds:",
-              len(coastal_points),
-             )
+
+        print(
+            "[ReturnFlow] Located outfall-period rows "
+            "intersecting eligible coastal watersheds:",
+            len(coastal_points),
+        )
 
         print(
             "[ReturnFlow] Located outfall-period rows "
@@ -1995,11 +2012,18 @@ class ReturnComponent:
             "outside the coastal review area:",
             len(outside_coastal_scope),
         )
+
         if coastal_points.empty:
             assigned = coastal_points.copy()
+
+            unexpected_spatial_unresolved = (
+                coastal_points.copy()
+            )
+
             spatial_unresolved = (
                 coastal_nearby_unresolved.copy()
             )
+
             spatial_audit = pd.concat(
                 [
                     coastal_nearby_unresolved,
@@ -2021,12 +2045,8 @@ class ReturnComponent:
                 include_flag_col="HAS_UNGAGE",
                 include_flag_value=1,
                 predicate="intersects",
-        
             )
 
-    # These points had already passed the exact coastal intersection
-    # test. Any unresolved result here indicates a geometry, CRS, or
-    # boundary-processing inconsistency that should be reviewed.
             if not unexpected_spatial_unresolved.empty:
                 unexpected_spatial_unresolved = (
                     unexpected_spatial_unresolved
@@ -2035,10 +2055,10 @@ class ReturnComponent:
 
                 unexpected_spatial_unresolved[
                     "coastal_scope_status"
-                 ] = (
+                ] = (
                     "unexpected_unresolved_after_"
                     "coastal_intersection"
-                 )
+                )
 
             spatial_unresolved = pd.concat(
                 [
@@ -2057,42 +2077,42 @@ class ReturnComponent:
                 ignore_index=True,
             )
 
-    if WRITE_DEBUG_FILES:
-        spatial_audit.to_csv(
-            "return_dmr_spatial_assignment_audit.csv",
-            index=False,
-        )
+        if WRITE_DEBUG_FILES:
+            spatial_audit.to_csv(
+                "return_dmr_spatial_"
+                "assignment_audit.csv",
+                index=False,
+            )
 
-    spatial_unresolved.to_csv(
-        "return_dmr_coastal_unresolved.csv",
-        index=False,
-    )
+            spatial_unresolved.to_csv(
+                "return_dmr_coastal_"
+                "unresolved.csv",
+                index=False,
+            )
 
-    outside_coastal_scope.to_csv(
-        "return_dmr_outside_coastal_scope.csv",
-        index=False,
-    )
+            outside_coastal_scope.to_csv(
+                "return_dmr_outside_"
+                "coastal_scope.csv",
+                index=False,
+            )
 
-if not spatial_unresolved.empty:
-    print(
-        "[ReturnFlow] Coastal or near-coastal "
-        "unresolved selected outfall-period rows: "
-        f"{len(spatial_unresolved)}"
-    )
+        if not spatial_unresolved.empty:
+            print(
+                "[ReturnFlow] Coastal or near-coastal "
+                "unresolved selected outfall-period rows: "
+                f"{len(spatial_unresolved)}"
+            )
 
-if assigned.empty:
-    print(
-        "[ReturnFlow] No selected outfalls "
-        "were assigned to eligible "
-        "ungaged coastal watersheds"
-    )
+        if assigned.empty:
+            print(
+                "[ReturnFlow] No selected outfalls "
+                "were assigned to eligible "
+                "ungaged coastal watersheds"
+            )
 
-    return pd.DataFrame(
-        columns=REQUIRED_OUT_COLS
-    )
-
-
-        
+            return pd.DataFrame(
+                columns=REQUIRED_OUT_COLS
+            )
 
         spatial_duplicates = (
             assigned.duplicated(
@@ -2130,8 +2150,10 @@ if assigned.empty:
 
         # Flow-volume conservation:
         #
-        # selected = assigned + geometry unresolved
-        #            + spatial unresolved
+        # selected = assigned
+        #            + geometry unresolved
+        #            + coastal spatial unresolved
+        #            + outside coastal scope
         selected_volume = float(
             feature_monthly[
                 "FLOW_ACFT_MONTH"
@@ -2158,12 +2180,14 @@ if assigned.empty:
                 record_cols,
             )
         )
+
         outside_scope_volume = (
             self._unique_volume(
                 outside_coastal_scope,
                 record_cols,
             )
         )
+
         accounted_volume = (
             assigned_volume
             + geometry_unresolved_volume
@@ -2182,13 +2206,13 @@ if assigned.empty:
         ) > tolerance:
             raise AssertionError(
                 "Return-flow volume was not "
-                "conserved through geometry and "
-                "spatial assignment. "
+                "conserved through geometry, coastal "
+                "scope, and spatial assignment. "
                 f"Selected={selected_volume}, "
                 f"assigned={assigned_volume}, "
                 "geometry_unresolved="
                 f"{geometry_unresolved_volume}, "
-                "spatial_unresolved="
+                "coastal_spatial_unresolved="
                 f"{spatial_unresolved_volume}, "
                 "outside_coastal_scope="
                 f"{outside_scope_volume}."
