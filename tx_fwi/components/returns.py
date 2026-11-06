@@ -1391,13 +1391,13 @@ class ReturnComponent:
             ].sum()
         )
     def _classify_coastal_spatial_scope(
-    self,
-    points: gpd.GeoDataFrame,
-    watersheds: gpd.GeoDataFrame,
-    *,
-    distance_miles: float = (
-        COASTAL_REVIEW_DISTANCE_MILES
-    ),
+        self,
+        points: gpd.GeoDataFrame,
+        watersheds: gpd.GeoDataFrame,
+        *,
+        distance_miles: float = (
+            COASTAL_REVIEW_DISTANCE_MILES
+        ),
     ) -> tuple[
         gpd.GeoDataFrame,
         gpd.GeoDataFrame,
