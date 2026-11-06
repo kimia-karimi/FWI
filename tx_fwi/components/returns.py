@@ -1403,23 +1403,23 @@ class ReturnComponent:
         gpd.GeoDataFrame,
         gpd.GeoDataFrame,
     ]:
-    """
-    Classify return-flow points by relevance to the coastal study area.
+        """
+        Classify return-flow points by relevance to the coastal study area.
 
-    Returns
-    -------
-    coastal_points
-        Points intersecting an eligible coastal watershed.
+        Returns
+        -------
+        coastal_points
+            Points intersecting an eligible coastal watershed.
 
-    coastal_nearby
-        Points outside the eligible watersheds but within the configured
-        coastal review distance. These records are for QA/QC only and
-        must not be included automatically in the return-flow calculation.
+        coastal_nearby
+            Points outside the eligible watersheds but within the configured
+            coastal review distance. These records are for QA/QC only and
+            must not be included automatically in the return-flow calculation.
 
-    outside_scope
-        Points farther from the eligible coastal watersheds than the
-        configured review distance.
-    """
+        outside_scope
+            Points farther from the eligible coastal watersheds than the
+            configured review distance.
+        """
     if not isinstance(
         points,
         gpd.GeoDataFrame,
@@ -2057,11 +2057,11 @@ class ReturnComponent:
                 ignore_index=True,
             )
 
-if WRITE_DEBUG_FILES:
-    spatial_audit.to_csv(
-        "return_dmr_spatial_assignment_audit.csv",
-        index=False,
-    )
+    if WRITE_DEBUG_FILES:
+        spatial_audit.to_csv(
+            "return_dmr_spatial_assignment_audit.csv",
+            index=False,
+        )
 
     spatial_unresolved.to_csv(
         "return_dmr_coastal_unresolved.csv",
