@@ -509,7 +509,7 @@ class ReturnComponent:
         self,
         dmr: pd.DataFrame,
         *,
-        raise_on_conflicting_ties: bool = Fa,
+        raise_on_conflicting_ties: bool = True,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         Select one representative flow per permit, outfall, and period.
