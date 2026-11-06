@@ -1399,11 +1399,11 @@ class ReturnComponent:
     distance_miles: float = (
         COASTAL_REVIEW_DISTANCE_MILES
     ),
-) -> tuple[
-    gpd.GeoDataFrame,
-    gpd.GeoDataFrame,
-    gpd.GeoDataFrame,
-]:
+    ) -> tuple[
+        gpd.GeoDataFrame,
+        gpd.GeoDataFrame,
+        gpd.GeoDataFrame,
+    ]:
     """
     Classify return-flow points by relevance to the coastal study area.
 
