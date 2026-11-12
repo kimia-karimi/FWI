@@ -2076,7 +2076,7 @@ class ReturnComponent:
                 ],
                 ignore_index=True,
             )
-
+        spatial_audit.info
         if WRITE_DEBUG_FILES:
             spatial_audit.to_csv(
                 "return_dmr_spatial_"
