@@ -31,7 +31,7 @@ REQUIRED_OUT_COLS = [
 
 # Keep this False until debug files are redirected to a local
 # directory. Previous writes to the mapped network drive failed.
-WRITE_DEBUG_FILES = False
+WRITE_DEBUG_FILES = True
 
 # Outfalls outside an eligible coastal watershed but within this
 # distance are retained for coastal QA/QC review.
