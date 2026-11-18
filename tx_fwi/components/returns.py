@@ -1653,14 +1653,24 @@ class ReturnComponent:
         start_fy = fiscal_year(start_ts)
         end_fy = fiscal_year(end_ts)
 
-        dmr = self.return_source.load_dmr(
+        dmr, limits =self.return_source..load_dmr_and_limits(
             start_fy,
-            end_fy,
-        )
+            end_fy,)
 
         if dmr.empty:
+            print(
+                "[ReturnFlow] No EPA DMR values "
+                "were available"
+            )
             return pd.DataFrame(
                 columns=REQUIRED_OUT_COLS
+            )
+            
+         if limits.empty:
+            raise RuntimeError(
+                "EPA DMR values were loaded but "
+                "the corresponding limit-definition "
+                "data are empty."
             )
 
         dmr[
@@ -1735,9 +1745,10 @@ class ReturnComponent:
             ]
         )
 
-        selected_dmr, selection_audit = (
+        selected_dmr, selection_audit, duplicate_comparison, duplicate_detail = (
             self._select_return_flow_candidates(
                 dmr,
+                limits=limits,
                 raise_on_conflicting_ties=False,
             )
         )
