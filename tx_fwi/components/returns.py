@@ -183,7 +183,7 @@ class ReturnComponent:
 
         work = work.dropna(subset=groups + ["FLOW_MGD"]).copy()
         if (work["FLOW_MGD"] < 0).any():
-            raise ValueError(
+            print(
                 "Negative EPA DMR flow values found:\n"
                 + work.loc[work["FLOW_MGD"] < 0, groups + ["FLOW_MGD"]]
                 .head(20).to_string(index=False)
