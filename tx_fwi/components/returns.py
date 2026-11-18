@@ -13,368 +13,98 @@ from tx_fwi.transforms.spatial import (
 from tx_fwi.transforms.temporal import expand_monthly_to_daily
 from tx_fwi.transforms.units import mgd_to_afday
 
-
 REQUIRED_OUT_COLS = [
-    "date",
-    "id",
-    "id_type",
-    "estuary",
-    "component",
-    "source",
-    "value_afday",
-    "flow_role",
-    "count_in_basin_sum",
-    "data_as_of",
-    "note",
+    "date", "id", "id_type", "estuary", "component", "source",
+    "value_afday", "flow_role", "count_in_basin_sum", "data_as_of", "note",
 ]
 
-
-# Keep this False until debug files are redirected to a local
-# directory. Previous writes to the mapped network drive failed.
 WRITE_DEBUG_FILES = True
-
-# Outfalls outside an eligible coastal watershed but within this
-# distance are retained for coastal QA/QC review.
 COASTAL_REVIEW_DISTANCE_MILES = 10.0
-
-# NAD83 / Conus Albers. Units are meters and are appropriate for
-# distance calculations across Texas.
 DISTANCE_CRS = "EPSG:5070"
-
 METERS_PER_MILE = 1609.344
 
-
 MONITORING_LOCATION_PRIORITY = {
-    "1": 0,    # Effluent Gross
-    "EG": 1,   # Effluent Gross
-    "Y": 2,    # Effluent Gross Supplementary
-    "EA": 3,   # Effluent Adjusted Value
-    "ED": 4,   # Effluent with additives
-    "E1": 5,   # Effluent Option 1
-    "E2": 6,   # Effluent Option 2
-    "E3": 7,   # Effluent Option 3
+    "1": 0, "EG": 1, "Y": 2, "EA": 3,
+    "ED": 4, "E1": 5, "E2": 6, "E3": 7,
 }
 
-
+# Existing ranking retained. Unknown codes receive rank 900.
 STATISTICAL_BASE_MAP = {
-    # Direct monthly or approximately monthly averages
-    "MK": {
-        "rank": 0,
-        "description": "Monthly Average",
-        "monthly_compatible": True,
-    },
-    "3C": {
-        "rank": 1,
-        "description": "30 Day Average",
-        "monthly_compatible": True,
-    },
-    "DB": {
-        "rank": 2,
-        "description": "Daily Average",
-        "monthly_compatible": True,
-    },
-    "1H": {
-        "rank": 3,
-        "description": "1 Day Average",
-        "monthly_compatible": False,
-    },
-    "DG": {
-        "rank": 4,
-        "description": "Discharge Per Day Average",
-        "monthly_compatible": False,
-    },
-    "AF": {
-        "rank": 5,
-        "description": "Average",
-        "monthly_compatible": False,
-    },
-    "AH": {
-        "rank": 6,
-        "description": "Average Value",
-        "monthly_compatible": False,
-    },
-    "AE": {
-        "rank": 7,
-        "description": "Arithmetic Mean",
-        "monthly_compatible": False,
-    },
-    "MC": {
-        "rank": 8,
-        "description": "Mean",
-        "monthly_compatible": False,
-    },
-    "RB": {
-        "rank": 9,
-        "description": "Reported Average",
-        "monthly_compatible": False,
-    },
-    "NA": {
-        "rank": 10,
-        "description": "Non-Specific Average",
-        "monthly_compatible": False,
-    },
-    "A1": {
-        "rank": 11,
-        "description": "Average (Data Migration)",
-        "monthly_compatible": False,
-    },
-
-    # Monthly or 30-day alternatives
-    "3B": {
-        "rank": 15,
-        "description": "30 Day Arithmetic",
-        "monthly_compatible": True,
-    },
-    "3F": {
-        "rank": 16,
-        "description": "30 Day Arithmetic Mean",
-        "monthly_compatible": True,
-    },
-    "3A": {
-        "rank": 17,
-        "description": "30 Day Geometric Mean",
-        "monthly_compatible": True,
-    },
-    "3D": {
-        "rank": 18,
-        "description": "30 Day Geometric",
-        "monthly_compatible": True,
-    },
-    "3H": {
-        "rank": 19,
-        "description": "30 Day Average Geometric",
-        "monthly_compatible": True,
-    },
-    "ML": {
-        "rank": 20,
-        "description": "Monthly Geometric",
-        "monthly_compatible": True,
-    },
-    "MM": {
-        "rank": 21,
-        "description": "Monthly Geometric Mean",
-        "monthly_compatible": True,
-    },
-    "M4": {
-        "rank": 22,
-        "description": "Monthly Average Geometric",
-        "monthly_compatible": True,
-    },
-    "LB": {
-        "rank": 23,
-        "description": "Logarithmic Monthly Median",
-        "monthly_compatible": False,
-    },
-    "M3": {
-        "rank": 24,
-        "description": "Monthly Median",
-        "monthly_compatible": False,
-    },
-
-    # Short-period fallbacks
-    "DP": {
-        "rank": 30,
-        "description": "14 Day Average",
-        "monthly_compatible": False,
-    },
-    "7A": {
-        "rank": 31,
-        "description": "7 Day Average",
-        "monthly_compatible": False,
-    },
-    "WA": {
-        "rank": 32,
-        "description": "Weekly Average",
-        "monthly_compatible": False,
-    },
-    "HB": {
-        "rank": 33,
-        "description": "High Weekly Average",
-        "monthly_compatible": False,
-    },
-    "HA": {
-        "rank": 34,
-        "description": "High 7 Day Average",
-        "monthly_compatible": False,
-    },
-    "4A": {
-        "rank": 35,
-        "description": "4 Day Average",
-        "monthly_compatible": False,
-    },
-    "5B": {
-        "rank": 36,
-        "description": "5 Day Average",
-        "monthly_compatible": False,
-    },
-    "1C": {
-        "rank": 37,
-        "description": "12 Day Average",
-        "monthly_compatible": False,
-    },
-    "9B": {
-        "rank": 38,
-        "description": "90 Day Average",
-        "monthly_compatible": False,
-    },
-    "1F": {
-        "rank": 39,
-        "description": "120 Day Average",
-        "monthly_compatible": False,
-    },
-
-    # Longer-period fallbacks
-    "QA": {
-        "rank": 50,
-        "description": "Quarterly Average",
-        "monthly_compatible": False,
-    },
-    "QR": {
-        "rank": 51,
-        "description": "Quarterly Rolling Average",
-        "monthly_compatible": False,
-    },
-    "SC": {
-        "rank": 52,
-        "description": "Semi-Annual Average",
-        "monthly_compatible": False,
-    },
-    "6D": {
-        "rank": 53,
-        "description": "6 Month Average",
-        "monthly_compatible": False,
-    },
-    "AB": {
-        "rank": 54,
-        "description": "Annual Average",
-        "monthly_compatible": False,
-    },
-    "1D": {
-        "rank": 55,
-        "description": "12 Month Average",
-        "monthly_compatible": False,
-    },
-    "1M": {
-        "rank": 56,
-        "description": "Month 1 Average",
-        "monthly_compatible": False,
-    },
-    "2M": {
-        "rank": 57,
-        "description": "Month 2 Average",
-        "monthly_compatible": False,
-    },
-    "3M": {
-        "rank": 58,
-        "description": "Month 3 Average",
-        "monthly_compatible": False,
-    },
-    "RA": {
-        "rank": 59,
-        "description": "Rolling Average",
-        "monthly_compatible": False,
-    },
-    "RE": {
-        "rank": 60,
-        "description": "Individual 12 Month Rolling Average",
-        "monthly_compatible": False,
-    },
-    "RF": {
-        "rank": 61,
-        "description": "Aggregate 12 Month Rolling Average",
-        "monthly_compatible": False,
-    },
-    "5Y": {
-        "rank": 62,
-        "description": "5 Year Average",
-        "monthly_compatible": False,
-    },
-
-    # Average-like fallback values
-    "DA": {
-        "rank": 70,
-        "description": "Daily Geometric Average",
-        "monthly_compatible": True,
-    },
-    "DM": {
-        "rank": 71,
-        "description": "Daily Geometric",
-        "monthly_compatible": False,
-    },
-    "GA": {
-        "rank": 72,
-        "description": "Geometric Mean",
-        "monthly_compatible": False,
-    },
-    "LA": {
-        "rank": 73,
-        "description": "Logarithmic Mean",
-        "monthly_compatible": False,
-    },
-    "MD": {
-        "rank": 74,
-        "description": "Median",
-        "monthly_compatible": False,
-    },
-    "DF": {
-        "rank": 75,
-        "description": "Daily Median",
-        "monthly_compatible": False,
-    },
-    "SE": {
-        "rank": 76,
-        "description": "Single Reading",
-        "monthly_compatible": False,
-    },
-    "VA": {
-        "rank": 77,
-        "description": "Value",
-        "monthly_compatible": False,
-    },
-    "DN": {
-        "rank": 78,
-        "description": "Discharged",
-        "monthly_compatible": False,
-    },
+    "MK": (0, "Monthly Average", True),
+    "3C": (1, "30 Day Average", True),
+    "DB": (2, "Daily Average", True),
+    "1H": (3, "1 Day Average", False),
+    "DG": (4, "Discharge Per Day Average", False),
+    "AF": (5, "Average", False),
+    "AH": (6, "Average Value", False),
+    "AE": (7, "Arithmetic Mean", False),
+    "MC": (8, "Mean", False),
+    "RB": (9, "Reported Average", False),
+    "NA": (10, "Non-Specific Average", False),
+    "A1": (11, "Average (Data Migration)", False),
+    "3B": (15, "30 Day Arithmetic", True),
+    "3F": (16, "30 Day Arithmetic Mean", True),
+    "3A": (17, "30 Day Geometric Mean", True),
+    "3D": (18, "30 Day Geometric", True),
+    "3H": (19, "30 Day Average Geometric", True),
+    "ML": (20, "Monthly Geometric", True),
+    "MM": (21, "Monthly Geometric Mean", True),
+    "M4": (22, "Monthly Average Geometric", True),
+    "LB": (23, "Logarithmic Monthly Median", False),
+    "M3": (24, "Monthly Median", False),
+    "DP": (30, "14 Day Average", False),
+    "7A": (31, "7 Day Average", False),
+    "WA": (32, "Weekly Average", False),
+    "HB": (33, "High Weekly Average", False),
+    "HA": (34, "High 7 Day Average", False),
+    "4A": (35, "4 Day Average", False),
+    "5B": (36, "5 Day Average", False),
+    "1C": (37, "12 Day Average", False),
+    "9B": (38, "90 Day Average", False),
+    "1F": (39, "120 Day Average", False),
+    "QA": (50, "Quarterly Average", False),
+    "QR": (51, "Quarterly Rolling Average", False),
+    "SC": (52, "Semi-Annual Average", False),
+    "6D": (53, "6 Month Average", False),
+    "AB": (54, "Annual Average", False),
+    "1D": (55, "12 Month Average", False),
+    "1M": (56, "Month 1 Average", False),
+    "2M": (57, "Month 2 Average", False),
+    "3M": (58, "Month 3 Average", False),
+    "RA": (59, "Rolling Average", False),
+    "RE": (60, "Individual 12 Month Rolling Average", False),
+    "RF": (61, "Aggregate 12 Month Rolling Average", False),
+    "5Y": (62, "5 Year Average", False),
+    "DA": (70, "Daily Geometric Average", True),
+    "DM": (71, "Daily Geometric", False),
+    "GA": (72, "Geometric Mean", False),
+    "LA": (73, "Logarithmic Mean", False),
+    "MD": (74, "Median", False),
+    "DF": (75, "Daily Median", False),
+    "SE": (76, "Single Reading", False),
+    "VA": (77, "Value", False),
+    "DN": (78, "Discharged", False),
 }
 
-
-STATISTICAL_TYPE_PRIORITY = {
-    "AVG": 0,
-    "MEAN": 1,
-    "MEDIAN": 2,
-}
+STATISTICAL_TYPE_PRIORITY = {"AVG": 0, "MEAN": 1, "MEDIAN": 2}
 
 
-def fiscal_year(dt):
-    dt = pd.Timestamp(dt)
-
-    return (
-        dt.year + 1
-        if dt.month >= 10
-        else dt.year
-    )
+def fiscal_year(value):
+    value = pd.Timestamp(value)
+    return value.year + 1 if value.month >= 10 else value.year
 
 
 def _join_unique(values):
-    """
-    Return sorted unique non-null values as a semicolon-delimited string.
-    """
-    unique_values = sorted(
-        {
-            str(value).strip()
-            for value in values
-            if value is not None
-            and not pd.isna(value)
-            and str(value).strip()
-        }
-    )
+    result = sorted({
+        str(value).strip() for value in values
+        if value is not None and not pd.isna(value) and str(value).strip()
+    })
+    return ";".join(result) if result else pd.NA
 
-    return (
-        ";".join(unique_values)
-        if unique_values
-        else pd.NA
-    )
+
+def _join_unique_numbers(values):
+    result = sorted({float(value) for value in values if not pd.isna(value)})
+    return ";".join(f"{value:.12g}" for value in result) if result else pd.NA
 
 
 class ReturnComponent:
@@ -382,1919 +112,376 @@ class ReturnComponent:
 
     def __init__(self, ctx: RunContext):
         self.ctx = ctx
-
-        self.return_source = ReturnFlowSource(
-            ctx=ctx
-        )
+        self.return_source = ReturnFlowSource(ctx=ctx)
 
     @staticmethod
     def _normalize_npdes(series):
         return (
-            series
-            .astype("string")
-            .str.replace(
-                r"\D+",
-                "",
-                regex=True,
-            )
-            .str.lstrip("0")
-            .replace("", pd.NA)
+            series.astype("string").str.replace(r"\D+", "", regex=True)
+            .str.lstrip("0").replace("", pd.NA)
         )
 
     @staticmethod
     def _normalize_outfall(series):
-        normalized = (
-            series
-            .astype("string")
-            .str.strip()
-            .str.upper()
-            .str.replace(
-                r"\.0$",
-                "",
-                regex=True,
-            )
-        )
-
         return (
-            normalized
-            .str.replace(
-                r"^0+(?=[0-9])",
-                "",
-                regex=True,
-            )
+            series.astype("string").str.strip().str.upper()
+            .str.replace(r"\.0$", "", regex=True)
+            .str.replace(r"^0+(?=[0-9])", "", regex=True)
             .replace("", pd.NA)
         )
 
     @staticmethod
     def _normalize_code(series):
         return (
-            series
-            .astype("string")
-            .str.strip()
-            .str.upper()
-            .replace(
-                {
-                    "": pd.NA,
-                    "NAN": pd.NA,
-                    "NONE": pd.NA,
-                    "<NA>": pd.NA,
-                }
+            series.astype("string").str.strip().str.upper()
+            .replace({"": pd.NA, "NAN": pd.NA, "NONE": pd.NA, "<NA>": pd.NA})
+        )
+
+    @staticmethod
+    def _limit_set_key(frame):
+        parts = []
+        for column in ["LIMIT_SET_ID", "LIMIT_SET_DESIGNATOR", "LIMIT_SET_SCHEDULE_ID"]:
+            value = (
+                frame[column].astype("string").str.strip().fillna("missing")
+                if column in frame.columns
+                else pd.Series("missing", index=frame.index, dtype="string")
             )
-        )
+            parts.append(column + "=" + value)
+        return parts[0] + "|" + parts[1] + "|" + parts[2]
 
-    def _build_feature_debug(
-        self,
-        feature_monthly,
-    ):
-        """
-        Create one permit-period row with one MGD column per outfall.
-        """
-        debug = (
-            feature_monthly
-            .pivot_table(
-                index=[
-                    "EXTERNAL_PERMIT_NMBR",
-                    "MONITORING_PERIOD_END_DATE",
-                ],
-                columns="PERM_FEATURE_NMBR",
-                values="FLOW_MGD",
-                aggfunc="sum",
-                fill_value=0,
-            )
-            .reset_index()
-        )
-
-        debug.columns = [
-            col
-            if col in [
-                "EXTERNAL_PERMIT_NMBR",
-                "MONITORING_PERIOD_END_DATE",
-            ]
-            else f"feature_{col}_mgd"
-            for col in debug.columns
-        ]
-
-        feature_cols = [
-            col
-            for col in debug.columns
-            if col.startswith("feature_")
-            and col.endswith("_mgd")
-        ]
-
-        debug["overall_flow_mgd"] = (
-            debug[feature_cols].sum(axis=1)
-        )
-
-        debug["days_in_month"] = (
-            pd.to_datetime(
-                debug[
-                    "MONITORING_PERIOD_END_DATE"
-                ]
-            )
-            .dt.days_in_month
-        )
-
-        debug[
-            "overall_flow_acft_month"
-        ] = (
-            mgd_to_afday(
-                debug["overall_flow_mgd"]
-            )
-            * debug["days_in_month"]
-        )
-
-        return debug
-
-    def _select_return_flow_candidates(
-        self,
-        dmr: pd.DataFrame,
-        *,
-        raise_on_conflicting_ties: bool = True,
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        """
-        Select one representative flow per permit, outfall, and period.
-        """
+    def _select_return_flow_candidates(self, dmr):
+        """Rank candidates and average different values from distinct top limit sets."""
         if dmr.empty:
             return dmr.copy(), dmr.copy()
 
-        work = dmr.copy().reset_index(
-            drop=True
-        )
-
-        work["_candidate_id"] = range(
-            len(work)
-        )
-
-        group_cols = [
-            "EXTERNAL_PERMIT_NMBR",
-            "PERMIT_NUM",
-            "PERM_FEATURE_NMBR",
+        work = dmr.copy().reset_index(drop=True)
+        work["_candidate_id"] = range(len(work))
+        groups = [
+            "EXTERNAL_PERMIT_NMBR", "PERMIT_NUM", "PERM_FEATURE_NMBR",
             "MONITORING_PERIOD_END_DATE",
         ]
-
-        required_cols = group_cols + [
-            "DMR_VALUE_STANDARD_UNITS",
-            "MONITORING_LOCATION_CODE",
-            "STATISTICAL_BASE_CODE",
-            "STATISTICAL_BASE_TYPE_CODE",
+        required = groups + [
+            "DMR_VALUE_STANDARD_UNITS", "MONITORING_LOCATION_CODE",
+            "STATISTICAL_BASE_CODE", "STATISTICAL_BASE_TYPE_CODE",
         ]
+        missing = [column for column in required if column not in work.columns]
+        if missing:
+            raise KeyError("Missing DMR selection fields: " + ", ".join(missing))
 
-        missing_cols = [
-            col
-            for col in required_cols
-            if col not in work.columns
-        ]
+        work["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(
+            work["MONITORING_PERIOD_END_DATE"], errors="coerce"
+        )
+        work["FLOW_MGD"] = pd.to_numeric(work["DMR_VALUE_STANDARD_UNITS"], errors="coerce")
+        for column in [
+            "EXTERNAL_PERMIT_NMBR", "MONITORING_LOCATION_CODE",
+            "STATISTICAL_BASE_CODE", "STATISTICAL_BASE_TYPE_CODE",
+            "DMR_VALUE_QUALIFIER_CODE", "NODI_CODE", "PARAMETER_CODE",
+            "LIMIT_SET_DESIGNATOR", "LIMIT_VALUE_TYPE_CODE",
+        ]:
+            if column in work.columns:
+                work[column] = self._normalize_code(work[column])
 
-        if missing_cols:
-            raise KeyError(
-                "Cannot select representative DMR "
-                "flow records. Missing columns: "
-                + ", ".join(missing_cols)
+        work = work.dropna(subset=groups + ["FLOW_MGD"]).copy()
+        if (work["FLOW_MGD"] < 0).any():
+            raise ValueError(
+                "Negative EPA DMR flow values found:\n"
+                + work.loc[work["FLOW_MGD"] < 0, groups + ["FLOW_MGD"]]
+                .head(20).to_string(index=False)
             )
 
-        work[
-            "MONITORING_PERIOD_END_DATE"
-        ] = pd.to_datetime(
-            work[
-                "MONITORING_PERIOD_END_DATE"
-            ],
-            errors="coerce",
+        work["_limit_set_key"] = self._limit_set_key(work)
+        work["stat_base_description"] = work["STATISTICAL_BASE_CODE"].map(
+            lambda code: STATISTICAL_BASE_MAP.get(code, (900, None, False))[1]
         )
-
-        work["FLOW_MGD"] = pd.to_numeric(
-            work[
-                "DMR_VALUE_STANDARD_UNITS"
-            ],
-            errors="coerce",
-        )
-
-        code_cols = [
-            "EXTERNAL_PERMIT_NMBR",
-            "MONITORING_LOCATION_CODE",
-            "STATISTICAL_BASE_CODE",
-            "STATISTICAL_BASE_TYPE_CODE",
-            "DMR_VALUE_QUALIFIER_CODE",
-            "NODI_CODE",
-            "PARAMETER_CODE",
-        ]
-
-        for col in code_cols:
-            if col in work.columns:
-                work[col] = (
-                    self._normalize_code(
-                        work[col]
-                    )
-                )
-
-        work = work.dropna(
-            subset=group_cols + ["FLOW_MGD"]
-        ).copy()
-
-        if work.empty:
-            return work.copy(), work.copy()
-
-        negative = work["FLOW_MGD"] < 0
-
-        # Negative values are retained under the current methodology.
-        # The following validation can be enabled if needed.
-        #
-        # if negative.any():
-        #     sample = work.loc[
-        #         negative,
-        #         group_cols + ["FLOW_MGD"],
-        #     ].head(20)
-        #
-        #     raise ValueError(
-        #         "Negative EPA DMR flow values require review:\n"
-        #         + sample.to_string(index=False)
-        #     )
-
-        work[
-            "stat_base_description"
-        ] = (
-            work["STATISTICAL_BASE_CODE"]
-            .map(
-                lambda code: (
-                    STATISTICAL_BASE_MAP
-                    .get(code, {})
-                    .get("description")
-                )
-            )
-        )
-
-        work["_stat_base_rank"] = (
-            work["STATISTICAL_BASE_CODE"]
-            .map(
-                lambda code: (
-                    STATISTICAL_BASE_MAP
-                    .get(code, {})
-                    .get("rank", 900)
-                )
-            )
-            .astype(int)
-        )
-
-        work[
-            "monthly_average_compatible"
-        ] = (
-            work["STATISTICAL_BASE_CODE"]
-            .map(
-                lambda code: (
-                    STATISTICAL_BASE_MAP
-                    .get(code, {})
-                    .get(
-                        "monthly_compatible",
-                        False,
-                    )
-                )
-            )
-        )
-
-        work["_monthly_compat_rank"] = (
-            ~work[
-                "monthly_average_compatible"
-            ]
+        work["_stat_base_rank"] = work["STATISTICAL_BASE_CODE"].map(
+            lambda code: STATISTICAL_BASE_MAP.get(code, (900, None, False))[0]
         ).astype(int)
-
+        work["monthly_average_compatible"] = work["STATISTICAL_BASE_CODE"].map(
+            lambda code: STATISTICAL_BASE_MAP.get(code, (900, None, False))[2]
+        )
+        work["_monthly_rank"] = (~work["monthly_average_compatible"]).astype(int)
         work["_stat_type_rank"] = (
-            work[
-                "STATISTICAL_BASE_TYPE_CODE"
-            ]
-            .map(STATISTICAL_TYPE_PRIORITY)
-            .fillna(900)
-            .astype(int)
+            work["STATISTICAL_BASE_TYPE_CODE"].map(STATISTICAL_TYPE_PRIORITY)
+            .fillna(900).astype(int)
         )
-
         work["_location_rank"] = (
-            work["MONITORING_LOCATION_CODE"]
-            .map(
-                MONITORING_LOCATION_PRIORITY
-            )
-            .fillna(90)
-            .astype(int)
+            work["MONITORING_LOCATION_CODE"].map(MONITORING_LOCATION_PRIORITY)
+            .fillna(90).astype(int)
         )
-
-        work["known_stat_base"] = (
-            work["STATISTICAL_BASE_CODE"]
-            .isin(STATISTICAL_BASE_MAP)
+        work["_known_rank"] = (~work["STATISTICAL_BASE_CODE"].isin(STATISTICAL_BASE_MAP)).astype(int)
+        work["eligible_average_candidate"] = work["STATISTICAL_BASE_TYPE_CODE"].isin(
+            STATISTICAL_TYPE_PRIORITY
         )
-
-        work["_known_code_rank"] = (
-            ~work["known_stat_base"]
-        ).astype(int)
-
-        work[
-            "eligible_average_candidate"
-        ] = (
-            work[
-                "STATISTICAL_BASE_TYPE_CODE"
-            ]
-            .isin(STATISTICAL_TYPE_PRIORITY)
-        )
-
-        eligible = work.loc[
-            work[
-                "eligible_average_candidate"
-            ]
-        ].copy()
-
+        eligible = work.loc[work["eligible_average_candidate"]].copy()
         if eligible.empty:
-            work[
-                "selection_result"
-            ] = "excluded_no_average_candidate"
-
+            work["selection_result"] = "excluded_no_average_candidate"
             return eligible, work
 
-        if (
-            "DMR_VALUE_QUALIFIER_CODE"
-            in eligible.columns
-        ):
-            qualifier = eligible[
-                "DMR_VALUE_QUALIFIER_CODE"
-            ]
-
-            eligible[
-                "_qualifier_rank"
-            ] = 10
-
-            eligible.loc[
-                qualifier.isna()
-                | qualifier.eq("="),
-                "_qualifier_rank",
-            ] = 0
-        else:
-            eligible[
-                "_qualifier_rank"
-            ] = 0
-
-        if "NODI_CODE" in eligible.columns:
-            eligible["_nodi_rank"] = (
-                eligible["NODI_CODE"]
-                .notna()
-                .astype(int)
-            )
-        else:
-            eligible["_nodi_rank"] = 0
-
-        if (
-            "VALUE_RECEIVED_DATE"
-            in eligible.columns
-        ):
-            eligible["_received_date"] = (
-                pd.to_datetime(
-                    eligible[
-                        "VALUE_RECEIVED_DATE"
-                    ],
-                    errors="coerce",
-                )
-            )
-        else:
-            eligible["_received_date"] = (
-                pd.NaT
-            )
-
+        qualifier = eligible.get("DMR_VALUE_QUALIFIER_CODE", pd.Series(pd.NA, index=eligible.index))
+        eligible["_qualifier_rank"] = 10
+        eligible.loc[qualifier.isna() | qualifier.eq("="), "_qualifier_rank"] = 0
+        eligible["_nodi_rank"] = (
+            eligible["NODI_CODE"].notna().astype(int)
+            if "NODI_CODE" in eligible.columns else 0
+        )
+        eligible["_received"] = (
+            pd.to_datetime(eligible["VALUE_RECEIVED_DATE"], errors="coerce")
+            if "VALUE_RECEIVED_DATE" in eligible.columns else pd.NaT
+        )
         eligible["selection_basis"] = (
-            "location="
-            + eligible[
-                "MONITORING_LOCATION_CODE"
-            ].fillna("missing")
-            + ";stat_base="
-            + eligible[
-                "STATISTICAL_BASE_CODE"
-            ].fillna("missing")
-            + ";stat_type="
-            + eligible[
-                "STATISTICAL_BASE_TYPE_CODE"
-            ].fillna("missing")
-            + ";description="
-            + eligible[
-                "stat_base_description"
-            ].fillna(
-                "unmapped average fallback"
-            )
+            "location=" + eligible["MONITORING_LOCATION_CODE"].fillna("missing")
+            + ";stat_base=" + eligible["STATISTICAL_BASE_CODE"].fillna("missing")
+            + ";stat_type=" + eligible["STATISTICAL_BASE_TYPE_CODE"].fillna("missing")
         )
 
-        exact_candidate_cols = (
-            group_cols
-            + [
-                "MONITORING_LOCATION_CODE",
-                "STATISTICAL_BASE_CODE",
-                "STATISTICAL_BASE_TYPE_CODE",
-                "FLOW_MGD",
-            ]
-        )
-
-        eligible[
-            "_candidate_copy_count"
-        ] = (
-            eligible
-            .groupby(
-                exact_candidate_cols,
-                dropna=False,
-            )["FLOW_MGD"]
-            .transform("size")
-        )
-
-        eligible = (
-            eligible
-            .drop_duplicates(
-                subset=exact_candidate_cols,
-                keep="first",
-            )
-            .copy()
-        )
-
-        substantive_rank_cols = [
-            "_stat_type_rank",
-            "_location_rank",
-            "_monthly_compat_rank",
-            "_known_code_rank",
-            "_stat_base_rank",
-            "_qualifier_rank",
-            "_nodi_rank",
+        exact = groups + [
+            "_limit_set_key", "MONITORING_LOCATION_CODE", "STATISTICAL_BASE_CODE",
+            "STATISTICAL_BASE_TYPE_CODE", "FLOW_MGD",
         ]
+        eligible["_candidate_copy_count"] = eligible.groupby(exact, dropna=False)[
+            "FLOW_MGD"
+        ].transform("size")
+        eligible = eligible.drop_duplicates(exact, keep="first").copy()
 
-        eligible["_priority_tuple"] = list(
-            zip(
-                *(
-                    eligible[col]
-                    for col
-                    in substantive_rank_cols
-                )
-            )
+        ranks = [
+            "_stat_type_rank", "_location_rank", "_monthly_rank", "_known_rank",
+            "_stat_base_rank", "_qualifier_rank", "_nodi_rank",
+        ]
+        eligible["_priority"] = list(zip(*(eligible[column] for column in ranks)))
+        eligible["_best_priority"] = eligible.groupby(groups, dropna=False)[
+            "_priority"
+        ].transform("min")
+        eligible["_is_top"] = eligible["_priority"].eq(eligible["_best_priority"])
+        top = eligible.loc[eligible["_is_top"]].copy()
+
+        summary = top.groupby(groups, dropna=False, as_index=False).agg(
+            n_top_candidates=("FLOW_MGD", "size"),
+            n_top_limit_sets=("_limit_set_key", "nunique"),
+            n_top_flow_values=("FLOW_MGD", "nunique"),
+            min_top_flow_mgd=("FLOW_MGD", "min"),
+            max_top_flow_mgd=("FLOW_MGD", "max"),
+            mean_top_flow_mgd=("FLOW_MGD", "mean"),
+            candidate_limit_sets=("_limit_set_key", _join_unique),
+            candidate_flow_values_mgd=("FLOW_MGD", _join_unique_numbers),
         )
 
-        eligible[
-            "_best_priority_tuple"
-        ] = (
-            eligible
-            .groupby(
-                group_cols,
-                dropna=False,
-            )["_priority_tuple"]
-            .transform("min")
-        )
-
-        eligible[
-            "_is_top_priority_candidate"
-        ] = (
-            eligible["_priority_tuple"]
-            .eq(
-                eligible[
-                    "_best_priority_tuple"
-                ]
-            )
-        )
-
-        top_candidates = eligible.loc[
-            eligible[
-                "_is_top_priority_candidate"
-            ]
-        ].copy()
-
-        top_summary = (
-            top_candidates
-            .groupby(
-                group_cols,
-                dropna=False,
-                as_index=False,
-            )
-            .agg(
-                n_top_candidates=(
-                    "FLOW_MGD",
-                    "size",
-                ),
-                n_top_flow_values=(
-                    "FLOW_MGD",
-                    "nunique",
-                ),
-                min_top_flow_mgd=(
-                    "FLOW_MGD",
-                    "min",
-                ),
-                max_top_flow_mgd=(
-                    "FLOW_MGD",
-                    "max",
-                ),
-            )
-        )
-
-        conflicting_groups = (
-            top_summary.loc[
-                top_summary[
-                    "n_top_flow_values"
-                ] > 1
-            ]
-            .copy()
-        )
-
-        if not conflicting_groups.empty:
-            conflict_rows = (
-                top_candidates
-                .merge(
-                    conflicting_groups[
-                        group_cols
-                    ],
-                    on=group_cols,
-                    how="inner",
-                )
-            )
-
-            display_cols = group_cols + [
-                "MONITORING_LOCATION_CODE",
-                "STATISTICAL_BASE_CODE",
-                "STATISTICAL_BASE_TYPE_CODE",
-                "FLOW_MGD",
-                "DMR_VALUE_ID",
-                "stat_base_description",
-            ]
-
-            display_cols = [
-                col
-                for col in display_cols
-                if col in conflict_rows.columns
-            ]
-
-            message = (
-                "Conflicting top-ranked EPA DMR "
-                "return-flow candidates were found. "
-                "Equal-priority records have different "
-                "flow values and were not summed:\n"
-                + conflict_rows[
-                    display_cols
-                ]
-                .head(50)
-                .to_string(index=False)
-            )
-
-            if raise_on_conflicting_ties:
-                raise ValueError(message)
-
-            print(
-                "[ReturnFlow] WARNING: "
-                + message
-            )
-
-        sort_cols = (
-            group_cols
-            + substantive_rank_cols
-            + ["_received_date"]
-        )
-
-        ascending = (
-            [True] * len(group_cols)
-            + [True]
-            * len(substantive_rank_cols)
-            + [False]
-        )
-
-        for optional_id in [
-            "DMR_VALUE_ID",
-            "DMR_FORM_VALUE_ID",
-            "DMR_EVENT_ID",
-            "LIMIT_VALUE_ID",
-            "LIMIT_ID",
-        ]:
-            if optional_id in eligible.columns:
-                sort_col = (
-                    f"_sort_{optional_id}"
-                )
-
-                eligible[sort_col] = (
-                    pd.to_numeric(
-                        eligible[optional_id],
-                        errors="coerce",
-                    )
-                )
-
-                sort_cols.append(sort_col)
+        sort_columns = groups + ranks + ["_received"]
+        ascending = [True] * len(groups) + [True] * len(ranks) + [False]
+        for column in ["DMR_VALUE_ID", "DMR_FORM_VALUE_ID", "DMR_EVENT_ID", "LIMIT_VALUE_ID", "LIMIT_ID"]:
+            if column in eligible.columns:
+                temp = "_sort_" + column
+                eligible[temp] = pd.to_numeric(eligible[column], errors="coerce")
+                sort_columns.append(temp)
                 ascending.append(False)
+        eligible = eligible.sort_values(sort_columns, ascending=ascending, na_position="last")
 
-        eligible = eligible.sort_values(
-            sort_cols,
-            ascending=ascending,
-            na_position="last",
-            kind="stable",
-        ).copy()
+        selected = eligible.drop_duplicates(groups, keep="first").copy()
+        selected["single_selection_flow_mgd"] = selected["FLOW_MGD"]
+        selected["single_selection_limit_set"] = selected["_limit_set_key"]
+        selected = selected.merge(summary, on=groups, how="left", validate="one_to_one")
 
-        selected = (
-            eligible
-            .drop_duplicates(
-                subset=group_cols,
-                keep="first",
-            )
-            .copy()
+        average = selected["n_top_limit_sets"].gt(1) & selected["n_top_flow_values"].gt(1)
+        equal = selected["n_top_limit_sets"].gt(1) & selected["n_top_flow_values"].eq(1)
+        selected.loc[average, "FLOW_MGD"] = selected.loc[average, "mean_top_flow_mgd"]
+        selected["selection_status"] = "selected_unique"
+        selected.loc[equal, "selection_status"] = "selected_from_equal_value_limit_sets"
+        selected.loc[average, "selection_status"] = "selected_mean_of_distinct_limit_sets"
+        selected["mean_minus_single_mgd"] = selected["FLOW_MGD"] - selected["single_selection_flow_mgd"]
+        selected["percent_change_from_single"] = pd.NA
+        nonzero = selected["single_selection_flow_mgd"].ne(0)
+        selected.loc[nonzero, "percent_change_from_single"] = (
+            selected.loc[nonzero, "mean_minus_single_mgd"]
+            / selected.loc[nonzero, "single_selection_flow_mgd"] * 100.0
+        )
+        selected["range_mgd"] = selected["max_top_flow_mgd"] - selected["min_top_flow_mgd"]
+        selected["range_percent_of_mean"] = pd.NA
+        nonzero_mean = selected["mean_top_flow_mgd"].ne(0)
+        selected.loc[nonzero_mean, "range_percent_of_mean"] = (
+            selected.loc[nonzero_mean, "range_mgd"]
+            / selected.loc[nonzero_mean, "mean_top_flow_mgd"] * 100.0
         )
 
-        selected = selected.merge(
-            top_summary,
-            on=group_cols,
-            how="left",
-            validate="one_to_one",
-        )
-
-        selected[
-            "selection_status"
-        ] = "selected_unique"
-
-        selected.loc[
-            (
-                selected[
-                    "n_top_candidates"
-                ] > 1
-            )
-            & (
-                selected[
-                    "n_top_flow_values"
-                ] == 1
-            ),
-            "selection_status",
-        ] = "selected_from_equal_value_tie"
-
-        selected.loc[
-            selected[
-                "n_top_flow_values"
-            ] > 1,
-            "selection_status",
-        ] = "selected_from_conflicting_tie"
-
-        if selected.duplicated(
-            group_cols
-        ).any():
-            raise AssertionError(
-                "Selector returned more than "
-                "one row per permit/outfall/period."
-            )
-
-        selected_candidate_ids = set(
-            selected["_candidate_id"]
-        )
-
-        eligible_audit = eligible.copy()
-
-        eligible_audit[
-            "selection_result"
-        ] = "not_selected"
-
-        eligible_audit.loc[
-            eligible_audit[
-                "_candidate_id"
-            ].isin(selected_candidate_ids),
+        audit_columns = groups + [
+            "selection_status", "single_selection_flow_mgd", "single_selection_limit_set",
+            "n_top_candidates", "n_top_limit_sets", "n_top_flow_values",
+            "min_top_flow_mgd", "max_top_flow_mgd", "mean_top_flow_mgd",
+            "candidate_limit_sets", "candidate_flow_values_mgd",
+            "mean_minus_single_mgd", "percent_change_from_single",
+            "range_mgd", "range_percent_of_mean",
+        ]
+        audit = work.merge(selected[audit_columns], on=groups, how="left", validate="many_to_one")
+        audit["selection_result"] = "excluded_not_representative_average"
+        audit.loc[audit["eligible_average_candidate"], "selection_result"] = "not_selected_lower_priority"
+        top_ids = set(top["_candidate_id"])
+        audit.loc[audit["_candidate_id"].isin(top_ids), "selection_result"] = "included_top_ranked_candidate"
+        audit.loc[
+            audit["_candidate_id"].isin(top_ids)
+            & audit["selection_status"].eq("selected_mean_of_distinct_limit_sets"),
             "selection_result",
-        ] = "selected"
-
-        eligible_audit.loc[
-            eligible_audit[
-                "_is_top_priority_candidate"
-            ]
-            & ~eligible_audit[
-                "_candidate_id"
-            ].isin(selected_candidate_ids),
-            "selection_result",
-        ] = "top_priority_tie_not_selected"
-
-        audit = work.merge(
-            eligible_audit[
-                [
-                    "_candidate_id",
-                    "selection_result",
-                ]
-            ],
-            on="_candidate_id",
-            how="left",
-            validate="one_to_one",
-        )
-
-        audit["selection_result"] = (
-            audit["selection_result"]
-            .fillna(
-                "excluded_not_representative_average"
-            )
-        )
-
+        ] = "included_in_limit_set_mean"
         return selected, audit
 
-    def _prepare_canonical_outfall_geometry(
-        self,
-        outfalls: gpd.GeoDataFrame,
-    ) -> gpd.GeoDataFrame:
-        """
-        Select one audited canonical geometry for each normalized
-        NPDES permit and outfall key.
-        """
-        required_cols = [
-            "NPDES_NUM",
-            "OUTFALL",
-            "geometry",
-        ]
-
-        missing_cols = [
-            col
-            for col in required_cols
-            if col not in outfalls.columns
-        ]
-
-        if missing_cols:
-            raise KeyError(
-                "TCEQ outfall data are missing "
-                "required columns: "
-                + ", ".join(missing_cols)
-            )
-
+    def _canonical_outfall_geometry(self, outfalls):
+        required = ["NPDES_NUM", "OUTFALL", "geometry"]
+        missing = [column for column in required if column not in outfalls.columns]
+        if missing:
+            raise KeyError("TCEQ outfall fields missing: " + ", ".join(missing))
         outfalls = outfalls.copy()
-
-        if not isinstance(
-            outfalls,
-            gpd.GeoDataFrame,
-        ):
-            outfalls = gpd.GeoDataFrame(
-                outfalls,
-                geometry="geometry",
-                crs="EPSG:4326",
-            )
-        elif outfalls.crs is None:
-            outfalls = outfalls.set_crs(
-                "EPSG:4326"
-            )
-
-        if "PERMIT_NUM" in outfalls.columns:
-            outfalls[
-                "TCEQ_PERMIT_NUM"
-            ] = (
-                outfalls["PERMIT_NUM"]
-                .astype("string")
-                .str.strip()
-            )
-
-        outfalls["PERMIT_NUM"] = (
-            self._normalize_npdes(
-                outfalls["NPDES_NUM"]
-            )
-        )
-
-        outfalls[
-            "PERM_FEATURE_NMBR"
-        ] = self._normalize_outfall(
-            outfalls["OUTFALL"]
-        )
-
-        print(
-            "[ReturnFlow] TCEQ outfall rows "
-            "before validation:",
-            len(outfalls),
-        )
-
-        outfalls = outfalls.dropna(
-            subset=[
-                "PERMIT_NUM",
-                "PERM_FEATURE_NMBR",
-                "geometry",
-            ]
-        ).copy()
-
-        print(
-            "[ReturnFlow] TCEQ outfall rows "
-            "with valid geometry:",
-            len(outfalls),
-        )
-
+        if outfalls.crs is None:
+            outfalls = outfalls.set_crs("EPSG:4326")
+        outfalls["PERMIT_NUM"] = self._normalize_npdes(outfalls["NPDES_NUM"])
+        outfalls["PERM_FEATURE_NMBR"] = self._normalize_outfall(outfalls["OUTFALL"])
+        outfalls = outfalls.dropna(subset=["PERMIT_NUM", "PERM_FEATURE_NMBR", "geometry"])
         if outfalls.empty:
-            return gpd.GeoDataFrame(
-                columns=[
-                    "PERMIT_NUM",
-                    "PERM_FEATURE_NMBR",
-                    "geometry",
-                ],
-                geometry="geometry",
-                crs=outfalls.crs,
-            )
+            return gpd.GeoDataFrame(columns=["PERMIT_NUM", "PERM_FEATURE_NMBR", "geometry"], geometry="geometry", crs="EPSG:4326")
 
-        geometry_key = [
-            "PERMIT_NUM",
-            "PERM_FEATURE_NMBR",
-        ]
-
-        metadata_cols = [
-            "OBJECTID",
-            "GIS_NUMBER",
-            "TCEQ_PERMIT_NUM",
-            "NPDES_NUM",
-            "OUTFALL",
-            "PERMITTEE",
-            "STATUS",
-            "DTYPE",
-            "SEGMENT",
-            "BASIN",
-            "HORZ_DATE",
-            "LAT_DD",
-            "LONG_DD",
-        ]
-
-        metadata_cols = [
-            col
-            for col in metadata_cols
-            if col in outfalls.columns
-        ]
-
-        candidates = outfalls[
-            geometry_key
-            + ["geometry"]
-            + metadata_cols
-        ].copy()
-
-        candidates["_geometry_wkt"] = (
-            candidates.geometry.to_wkt()
+        outfalls["_horz_date_sort"] = pd.to_numeric(outfalls.get("HORZ_DATE"), errors="coerce")
+        outfalls["_objectid_sort"] = pd.to_numeric(outfalls.get("OBJECTID"), errors="coerce")
+        sort_columns = ["PERMIT_NUM", "PERM_FEATURE_NMBR", "_horz_date_sort", "_objectid_sort"]
+        ascending = [True, True, False, False]
+        canonical = outfalls.sort_values(sort_columns, ascending=ascending, na_position="last").drop_duplicates(
+            ["PERMIT_NUM", "PERM_FEATURE_NMBR"], keep="first"
         )
+        return gpd.GeoDataFrame(canonical, geometry="geometry", crs=outfalls.crs)
 
-        if "HORZ_DATE" in candidates.columns:
-            candidates[
-                "_horz_date_sort"
-            ] = pd.to_numeric(
-                candidates["HORZ_DATE"],
-                errors="coerce",
-            )
-        else:
-            candidates[
-                "_horz_date_sort"
-            ] = pd.NA
-
-        if "OBJECTID" in candidates.columns:
-            candidates[
-                "_objectid_sort"
-            ] = pd.to_numeric(
-                candidates["OBJECTID"],
-                errors="coerce",
-            )
-        else:
-            candidates[
-                "_objectid_sort"
-            ] = pd.NA
-
-        summary = (
-            candidates
-            .groupby(
-                geometry_key,
-                dropna=False,
-                as_index=False,
-            )
-            .agg(
-                n_geometry_candidates=(
-                    "_geometry_wkt",
-                    "nunique",
-                ),
-                candidate_coordinates=(
-                    "_geometry_wkt",
-                    _join_unique,
-                ),
-            )
-        )
-
-        summary_fields = {
-            "GIS_NUMBER": (
-                "candidate_GIS_NUMBERs"
-            ),
-            "TCEQ_PERMIT_NUM": (
-                "candidate_TCEQ_PERMIT_NUMs"
-            ),
-            "DTYPE": "candidate_DTYPES",
-            "SEGMENT": "candidate_SEGMENTs",
-            "BASIN": "candidate_BASINs",
-            "HORZ_DATE": (
-                "candidate_HORZ_DATEs"
-            ),
-        }
-
-        for source_col, summary_col in (
-            summary_fields.items()
-        ):
-            if source_col not in candidates.columns:
-                continue
-
-            field_summary = (
-                candidates
-                .groupby(
-                    geometry_key,
-                    dropna=False,
-                )[source_col]
-                .agg(_join_unique)
-                .rename(summary_col)
-                .reset_index()
-            )
-
-            summary = summary.merge(
-                field_summary,
-                on=geometry_key,
-                how="left",
-                validate="one_to_one",
-            )
-
-        sort_cols = (
-            geometry_key
-            + [
-                "_horz_date_sort",
-                "_objectid_sort",
-            ]
-        )
-
-        ascending = [
-            True,
-            True,
-            False,
-            False,
-        ]
-
-        if "GIS_NUMBER" in candidates.columns:
-            sort_cols.append("GIS_NUMBER")
-            ascending.append(True)
-
-        canonical = (
-            candidates
-            .sort_values(
-                sort_cols,
-                ascending=ascending,
-                na_position="last",
-                kind="stable",
-            )
-            .drop_duplicates(
-                subset=geometry_key,
-                keep="first",
-            )
-            .merge(
-                summary,
-                on=geometry_key,
-                how="left",
-                validate="one_to_one",
-            )
-        )
-
-        canonical = gpd.GeoDataFrame(
-            canonical,
-            geometry="geometry",
-            crs=outfalls.crs,
-        )
-
-        canonical[
-            "geometry_lookup_method"
-        ] = "unique_exact_outfall_geometry"
-
-        canonical.loc[
-            canonical[
-                "n_geometry_candidates"
-            ].gt(1),
-            "geometry_lookup_method",
-        ] = (
-            "ranked_multiple_exact_"
-            "geometry_candidates"
-        )
-
-        if WRITE_DEBUG_FILES:
-            canonical.loc[
-                canonical[
-                    "n_geometry_candidates"
-                ].gt(1)
-            ].to_csv(
-                "return_tceq_multiple_"
-                "geometry_candidates.csv",
-                index=False,
-            )
-
-        return canonical
-
-    @staticmethod
-    def _unique_volume(
-        df,
-        record_cols,
-    ):
-        """
-        Sum one monthly volume per source record from an audit table.
-        """
-        if (
-            df.empty
-            or "FLOW_ACFT_MONTH"
-            not in df.columns
-        ):
-            return 0.0
-
-        available_keys = [
-            col
-            for col in record_cols
-            if col in df.columns
-        ]
-
-        if not available_keys:
-            return float(
-                df["FLOW_ACFT_MONTH"].sum()
-            )
-
-        unique_rows = df.drop_duplicates(
-            subset=available_keys,
-            keep="first",
-        )
-
-        return float(
-            unique_rows[
-                "FLOW_ACFT_MONTH"
-            ].sum()
-        )
-
-    def _classify_coastal_spatial_scope(
-        self,
-        points: gpd.GeoDataFrame,
-        watersheds: gpd.GeoDataFrame,
-        *,
-        distance_miles: float = (
-            COASTAL_REVIEW_DISTANCE_MILES
-        ),
-    ) -> tuple[
-        gpd.GeoDataFrame,
-        gpd.GeoDataFrame,
-        gpd.GeoDataFrame,
-    ]:
-        """
-        Classify return-flow points by relevance to the coastal study area.
-
-        Returns
-        -------
-        coastal_points
-            Points intersecting an eligible coastal watershed.
-
-        coastal_nearby
-            Points outside eligible coastal watersheds but within the
-            configured coastal review distance. These records are retained
-            for QA/QC only and are not automatically included in the
-            return-flow calculation.
-
-        outside_scope
-            Points farther from the eligible coastal watersheds than the
-            configured review distance.
-        """
-        if not isinstance(
-            points,
-            gpd.GeoDataFrame,
-        ):
-            raise TypeError(
-                "points must be a GeoDataFrame."
-            )
-
-        if not isinstance(
-            watersheds,
-            gpd.GeoDataFrame,
-        ):
-            raise TypeError(
-                "watersheds must be a GeoDataFrame."
-            )
-
-        if points.crs is None:
-            raise ValueError(
-                "Return-flow points do not have a CRS."
-            )
-
-        if watersheds.crs is None:
-            raise ValueError(
-                "Coastal watersheds do not have a CRS."
-            )
-
-        if distance_miles < 0:
-            raise ValueError(
-                "Coastal review distance cannot be negative."
-            )
-
-        required_watershed_cols = [
-            "WS_ID",
-            "Estuary",
-            "HAS_UNGAGE",
-            "geometry",
-        ]
-
-        missing_cols = [
-            col
-            for col in required_watershed_cols
-            if col not in watersheds.columns
-        ]
-
-        if missing_cols:
-            raise KeyError(
-                "Watershed data are missing required columns: "
-                + ", ".join(missing_cols)
-            )
-
-        work_points = points.copy()
-
-        work_points = work_points.loc[
-            work_points.geometry.notna()
-            & ~work_points.geometry.is_empty
-        ].copy()
-
-        if work_points.empty:
-            empty = work_points.copy()
-
-            return (
-                empty,
-                empty.copy(),
-                empty.copy(),
-            )
-
-        eligible_watersheds = watersheds.loc[
+    def _scope(self, points, watersheds):
+        eligible = watersheds.loc[
             watersheds["HAS_UNGAGE"].eq(1)
             & watersheds.geometry.notna()
             & ~watersheds.geometry.is_empty
         ].copy()
-
-        if eligible_watersheds.empty:
-            raise ValueError(
-                "No eligible coastal watersheds were found "
-                "with HAS_UNGAGE = 1."
-            )
-
-        eligible_for_join = (
-            eligible_watersheds
-            .to_crs(work_points.crs)
-        )
-
-        exact_match = gpd.sjoin(
-            work_points,
-            eligible_for_join[
-                [
-                    "WS_ID",
-                    "Estuary",
-                    "geometry",
-                ]
-            ],
+        joined = gpd.sjoin(
+            points,
+            eligible.to_crs(points.crs)[["WS_ID", "Estuary", "geometry"]],
             how="left",
             predicate="intersects",
         )
+        coast_indexes = joined.loc[joined["WS_ID"].notna()].index.unique()
+        coast = points.loc[points.index.isin(coast_indexes)].copy()
+        remaining = points.loc[~points.index.isin(coast_indexes)].copy()
+        coast["coastal_scope_status"] = "intersects_eligible_coastal_watershed"
+        coast["distance_to_coastal_watershed_miles"] = 0.0
+        if remaining.empty:
+            return coast, remaining, remaining.copy()
 
-        exact_point_indexes = (
-            exact_match.loc[
-                exact_match["WS_ID"].notna()
-            ]
-            .index
-            .unique()
-        )
+        projected = remaining.to_crs(DISTANCE_CRS)
+        union = eligible.to_crs(DISTANCE_CRS).geometry.unary_union
+        projected["distance_to_coastal_watershed_miles"] = projected.geometry.distance(union) / METERS_PER_MILE
+        nearby_mask = projected["distance_to_coastal_watershed_miles"].le(COASTAL_REVIEW_DISTANCE_MILES)
+        nearby = projected.loc[nearby_mask].to_crs(points.crs).copy()
+        outside = projected.loc[~nearby_mask].to_crs(points.crs).copy()
+        nearby["coastal_scope_status"] = "near_coastal_watershed_unresolved"
+        outside["coastal_scope_status"] = "outside_coastal_review_area"
+        return coast, nearby, outside
 
-        coastal_points = work_points.loc[
-            work_points.index.isin(
-                exact_point_indexes
-            )
-        ].copy()
+    @staticmethod
+    def _unique_volume(frame, record_columns):
+        if frame.empty:
+            return 0.0
+        return float(frame.drop_duplicates(record_columns)["FLOW_ACFT_MONTH"].sum())
 
-        nonintersecting = work_points.loc[
-            ~work_points.index.isin(
-                exact_point_indexes
-            )
-        ].copy()
+    @staticmethod
+    def _write_duplicate_debug(reportable, audit, records):
+        statuses = {"selected_mean_of_distinct_limit_sets", "selected_from_equal_value_limit_sets"}
+        comparison = reportable.loc[reportable["selection_status"].isin(statuses)].copy()
+        if not comparison.empty:
+            comparison.to_csv("return_dmr_duplicate_limit_set_comparison.csv", index=False)
+        keys = reportable[records + [
+            column for column in [
+                "coastal_scope_status", "distance_to_coastal_watershed_miles",
+                "geometry_assignment_method", "geometry_donor_outfall",
+            ] if column in reportable.columns
+        ]].drop_duplicates(records)
+        detail = audit.merge(keys, on=records, how="inner", validate="many_to_one")
+        detail = detail.loc[detail["selection_status"].isin(statuses)]
+        if not detail.empty:
+            detail.to_csv("return_dmr_duplicate_limit_set_detail.csv", index=False)
 
-        coastal_points[
-            "coastal_scope_status"
-        ] = (
-            "intersects_eligible_coastal_watershed"
-        )
-
-        coastal_points[
-            "distance_to_coastal_watershed_m"
-        ] = 0.0
-
-        coastal_points[
-            "distance_to_coastal_watershed_miles"
-        ] = 0.0
-
-        if nonintersecting.empty:
-            empty = nonintersecting.copy()
-
-            return (
-                coastal_points,
-                empty,
-                empty.copy(),
-            )
-
-        watershed_distance = (
-            eligible_watersheds
-            .to_crs(DISTANCE_CRS)
-        )
-
-        nonintersecting_distance = (
-            nonintersecting
-            .to_crs(DISTANCE_CRS)
-        )
-
-        # unary_union is compatible with older GeoPandas/Shapely.
-        coastal_union = (
-            watershed_distance
-            .geometry
-            .unary_union
-        )
-
-        nonintersecting_distance[
-            "distance_to_coastal_watershed_m"
-        ] = (
-            nonintersecting_distance
-            .geometry
-            .distance(coastal_union)
-        )
-
-        nonintersecting_distance[
-            "distance_to_coastal_watershed_miles"
-        ] = (
-            nonintersecting_distance[
-                "distance_to_coastal_watershed_m"
-            ]
-            / METERS_PER_MILE
-        )
-
-        nearby_mask = (
-            nonintersecting_distance[
-                "distance_to_coastal_watershed_miles"
-            ]
-            <= distance_miles
-        )
-
-        coastal_nearby = (
-            nonintersecting_distance.loc[
-                nearby_mask
-            ]
-            .to_crs(work_points.crs)
-            .copy()
-        )
-
-        outside_scope = (
-            nonintersecting_distance.loc[
-                ~nearby_mask
-            ]
-            .to_crs(work_points.crs)
-            .copy()
-        )
-
-        coastal_nearby[
-            "coastal_scope_status"
-        ] = (
-            "near_coastal_watershed_unresolved"
-        )
-
-        outside_scope[
-            "coastal_scope_status"
-        ] = (
-            "outside_coastal_review_area"
-        )
-
-        return (
-            coastal_points,
-            coastal_nearby,
-            outside_scope,
-        )
-
-    def build(
-        self,
-        start,
-        end,
-    ):
-        start_ts = pd.Timestamp(start)
-        end_ts = pd.Timestamp(end)
-
-        start_fy = fiscal_year(start_ts)
-        end_fy = fiscal_year(end_ts)
-
-        dmr = self.return_source.load_dmr(
-            start_fy,
-            end_fy,
-        )
-
+    def build(self, start, end):
+        start_ts, end_ts = pd.Timestamp(start), pd.Timestamp(end)
+        dmr = self.return_source.load_dmr(fiscal_year(start_ts), fiscal_year(end_ts))
         if dmr.empty:
-            return pd.DataFrame(
-                columns=REQUIRED_OUT_COLS
-            )
+            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
 
-        dmr[
-            "MONITORING_PERIOD_END_DATE"
-        ] = pd.to_datetime(
-            dmr[
-                "MONITORING_PERIOD_END_DATE"
-            ],
-            errors="coerce",
-        )
-
-        dmr["PARAMETER_CODE"] = (
-            self._normalize_code(
-                dmr["PARAMETER_CODE"]
-            )
-        )
-
+        dmr["MONITORING_PERIOD_END_DATE"] = pd.to_datetime(dmr["MONITORING_PERIOD_END_DATE"], errors="coerce")
+        dmr["PARAMETER_CODE"] = self._normalize_code(dmr["PARAMETER_CODE"])
         dmr = dmr.loc[
-            dmr[
-                "MONITORING_PERIOD_END_DATE"
-            ].between(
-                start_ts,
-                end_ts,
-                inclusive="both",
-            )
-            & dmr[
-                "PARAMETER_CODE"
-            ].eq("50050")
+            dmr["MONITORING_PERIOD_END_DATE"].between(start_ts, end_ts, inclusive="both")
+            & dmr["PARAMETER_CODE"].eq("50050")
         ].copy()
+        dmr["PERMIT_NUM"] = self._normalize_npdes(dmr["EXTERNAL_PERMIT_NMBR"])
+        dmr["PERM_FEATURE_NMBR"] = self._normalize_outfall(dmr["PERM_FEATURE_NMBR"])
+        dmr = dmr.dropna(subset=["PERMIT_NUM", "PERM_FEATURE_NMBR"])
 
-        dmr["FLOW_MGD"] = pd.to_numeric(
-            dmr[
-                "DMR_VALUE_STANDARD_UNITS"
-            ],
-            errors="coerce",
+        selected, audit = self._select_return_flow_candidates(dmr)
+        if selected.empty:
+            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
+
+        records = ["EXTERNAL_PERMIT_NMBR", "PERMIT_NUM", "PERM_FEATURE_NMBR", "MONITORING_PERIOD_END_DATE"]
+        feature = selected.copy()
+        feature["days_in_month"] = feature["MONITORING_PERIOD_END_DATE"].dt.days_in_month
+        feature["FLOW_ACFT_MONTH"] = mgd_to_afday(feature["FLOW_MGD"]) * feature["days_in_month"]
+
+        outfalls = self.return_source.load_perm_feature_nmbrs()
+        if self.return_source.last_outfall_retrieved_count != self.return_source.last_outfall_expected_count:
+            raise RuntimeError("TCEQ outfall retrieval was incomplete.")
+        canonical = self._canonical_outfall_geometry(outfalls)
+        located, unlocated = fill_missing_geometry_from_group(
+            feature, canonical,
+            group_col="PERMIT_NUM", feature_col="PERM_FEATURE_NMBR", geometry_col="geometry",
+            donor_sort_cols=["_horz_date_sort", "_objectid_sort", "PERM_FEATURE_NMBR"],
+            assignment_col="geometry_assignment_method", donor_feature_col="geometry_donor_outfall",
         )
+        if located.empty:
+            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
 
-        dmr = dmr.dropna(
-            subset=[
-                "MONITORING_PERIOD_END_DATE",
-                "EXTERNAL_PERMIT_NMBR",
-                "PERM_FEATURE_NMBR",
-                "FLOW_MGD",
-            ]
-        )
+        points = gpd.GeoDataFrame(located, geometry="geometry", crs=canonical.crs)
+        watersheds = self.ctx.registry.load_watersheds()[["WS_ID", "Estuary", "HAS_UNGAGE", "geometry"]].copy()
+        coastal, nearby, outside = self._scope(points, watersheds)
+        reportable = pd.concat([coastal, nearby], ignore_index=True)
 
-        if dmr.empty:
-            return pd.DataFrame(
-                columns=REQUIRED_OUT_COLS
-            )
-
-        dmr["PERMIT_NUM"] = (
-            self._normalize_npdes(
-                dmr[
-                    "EXTERNAL_PERMIT_NMBR"
-                ]
-            )
-        )
-
-        dmr["PERM_FEATURE_NMBR"] = (
-            self._normalize_outfall(
-                dmr[
-                    "PERM_FEATURE_NMBR"
-                ]
-            )
-        )
-
-        dmr = dmr.dropna(
-            subset=[
-                "PERMIT_NUM",
-                "PERM_FEATURE_NMBR",
-            ]
-        )
-
-        selected_dmr, selection_audit = (
-            self._select_return_flow_candidates(
-                dmr,
-                raise_on_conflicting_ties=False,
-            )
-        )
+        assigned, unexpected, spatial_audit = assign_geometries_to_watersheds(
+            coastal, watersheds, record_cols=records, ws_col="WS_ID", estuary_col="Estuary",
+            include_flag_col="HAS_UNGAGE", include_flag_value=1, predicate="intersects",
+        ) if not coastal.empty else (coastal.copy(), coastal.copy(), coastal.copy())
+        if not unexpected.empty:
+            unexpected = unexpected.copy()
+            unexpected["coastal_scope_status"] = "unexpected_unresolved_after_coastal_intersection"
+        unresolved = pd.concat([nearby, unexpected], ignore_index=True)
+        spatial_audit = pd.concat([spatial_audit, nearby], ignore_index=True)
 
         if WRITE_DEBUG_FILES:
-            selection_audit.to_csv(
-                "return_dmr_selection_audit.csv",
-                index=False,
-            )
+            self._write_duplicate_debug(reportable, audit, records)
+            if not spatial_audit.empty:
+                spatial_audit.to_csv("return_dmr_spatial_assignment_audit.csv", index=False)
+            if not unresolved.empty:
+                unresolved.to_csv("return_dmr_coastal_unresolved.csv", index=False)
 
-        if selected_dmr.empty:
-            print(
-                "[ReturnFlow] No representative "
-                "average-flow candidates selected"
-            )
-
-            return pd.DataFrame(
-                columns=REQUIRED_OUT_COLS
-            )
-
-        print(
-            "[ReturnFlow] Candidate rows:",
-            len(dmr),
-        )
-
-        print(
-            "[ReturnFlow] Selected "
-            "permit-outfall-period rows:",
-            len(selected_dmr),
-        )
-
-        print(
-            "[ReturnFlow] Selected bases:"
-        )
-
-        print(
-            selected_dmr[
-                "selection_basis"
-            ]
-            .value_counts(dropna=False)
-            .to_string()
-        )
-
-        feature_cols = [
-            "EXTERNAL_PERMIT_NMBR",
-            "PERMIT_NUM",
-            "PERM_FEATURE_NMBR",
-            "STATISTICAL_BASE_CODE",
-            "MONITORING_PERIOD_END_DATE",
-            "FLOW_MGD",
-            "MONITORING_LOCATION_CODE",
-            "STATISTICAL_BASE_TYPE_CODE",
-            "stat_base_description",
-            "selection_basis",
-            "selection_status",
-        ]
-
-        feature_monthly = (
-            selected_dmr[
-                feature_cols
-            ].copy()
-        )
-
-        record_cols = [
-            "EXTERNAL_PERMIT_NMBR",
-            "PERMIT_NUM",
-            "PERM_FEATURE_NMBR",
-            "MONITORING_PERIOD_END_DATE",
-        ]
-
-        duplicate_selected = (
-            feature_monthly
-            .duplicated(
-                subset=record_cols,
-                keep=False,
-            )
-        )
-
-        if duplicate_selected.any():
-            raise AssertionError(
-                "Selected DMR data contains duplicate "
-                "permit/outfall/period rows:\n"
-                + feature_monthly.loc[
-                    duplicate_selected
-                ]
-                .head(50)
-                .to_string(index=False)
-            )
-
-        feature_monthly[
-            "days_in_month"
-        ] = (
-            feature_monthly[
-                "MONITORING_PERIOD_END_DATE"
-            ]
-            .dt.days_in_month
-        )
-
-        feature_monthly[
-            "FLOW_ACFT_MONTH"
-        ] = (
-            mgd_to_afday(
-                feature_monthly[
-                    "FLOW_MGD"
-                ]
-            )
-            * feature_monthly[
-                "days_in_month"
-            ]
-        )
-
-        if WRITE_DEBUG_FILES:
-            self._build_feature_debug(
-                feature_monthly
-            ).to_csv(
-                "return_dmr_feature_flow_debug.csv",
-                index=False,
-            )
-
-        outfalls = (
-            self.return_source
-            .load_perm_feature_nmbrs()
-        )
-
-        expected_outfalls = (
-            self.return_source
-            .last_outfall_expected_count
-        )
-
-        retrieved_outfalls = (
-            self.return_source
-            .last_outfall_retrieved_count
-        )
-
-        if (
-            expected_outfalls is None
-            or retrieved_outfalls is None
-            or retrieved_outfalls != expected_outfalls
-        ):
-            raise RuntimeError(
-                "Return-flow processing cannot continue "
-                "because the TCEQ outfall retrieval was "
-                "not verified as complete. "
-                f"Expected={expected_outfalls}; "
-                f"retrieved={retrieved_outfalls}."
-            )
-
-        canonical_geometry = (
-            self._prepare_canonical_outfall_geometry(
-                outfalls
-            )
-        )
-
-        if canonical_geometry.empty:
-            print(
-                "[ReturnFlow] No valid TCEQ "
-                "outfall geometry was available"
-            )
-
-            return pd.DataFrame(
-                columns=REQUIRED_OUT_COLS
-            )
-
-        (
-            geometry_assigned,
-            geometry_unresolved,
-        ) = fill_missing_geometry_from_group(
-            feature_monthly,
-            canonical_geometry,
-            group_col="PERMIT_NUM",
-            feature_col="PERM_FEATURE_NMBR",
-            geometry_col="geometry",
-            donor_sort_cols=[
-                "_horz_date_sort",
-                "_objectid_sort",
-                "PERM_FEATURE_NMBR",
-            ],
-            assignment_col=(
-                "geometry_assignment_method"
-            ),
-            donor_feature_col=(
-                "geometry_donor_outfall"
-            ),
-        )
-
-        if not geometry_unresolved.empty:
-            geometry_unresolved = (
-                geometry_unresolved.copy()
-            )
-
-            geometry_unresolved[
-                "coastal_scope_status"
-            ] = "unresolved_location_unknown"
-
-        if WRITE_DEBUG_FILES:
-            geometry_assigned.to_csv(
-                "return_dmr_geometry_"
-                "assignment_audit.csv",
-                index=False,
-            )
-
-            geometry_unresolved.to_csv(
-                "return_dmr_geometry_"
-                "unresolved.csv",
-                index=False,
-            )
-
-        if not geometry_unresolved.empty:
-            print(
-                "[ReturnFlow] Selected "
-                "outfall-period rows without "
-                "any permit geometry: "
-                f"{len(geometry_unresolved)}"
-            )
-
-        if geometry_assigned.empty:
-            print(
-                "[ReturnFlow] No selected records "
-                "have exact or permit-fallback "
-                "geometry"
-            )
-
-            return pd.DataFrame(
-                columns=REQUIRED_OUT_COLS
-            )
-
-        points = gpd.GeoDataFrame(
-            geometry_assigned,
-            geometry="geometry",
-            crs=canonical_geometry.crs,
-        )
-
-        watersheds = (
-            self.ctx.registry
-            .load_watersheds()[
-                [
-                    "WS_ID",
-                    "Estuary",
-                    "HAS_UNGAGE",
-                    "geometry",
-                ]
-            ]
-            .copy()
-        )
-
-        (
-            coastal_points,
-            coastal_nearby_unresolved,
-            outside_coastal_scope,
-        ) = self._classify_coastal_spatial_scope(
-            points,
-            watersheds,
-            distance_miles=(
-                COASTAL_REVIEW_DISTANCE_MILES
-            ),
-        )
-
-        print(
-            "[ReturnFlow] Located outfall-period rows "
-            "intersecting eligible coastal watersheds:",
-            len(coastal_points),
-        )
-
-        print(
-            "[ReturnFlow] Located outfall-period rows "
-            "near the coastal study area but unresolved:",
-            len(coastal_nearby_unresolved),
-        )
-
-        print(
-            "[ReturnFlow] Located outfall-period rows "
-            "outside the coastal review area:",
-            len(outside_coastal_scope),
-        )
-
-        if coastal_points.empty:
-            assigned = coastal_points.copy()
-
-            unexpected_spatial_unresolved = (
-                coastal_points.copy()
-            )
-
-            spatial_unresolved = (
-                coastal_nearby_unresolved.copy()
-            )
-
-            spatial_audit = pd.concat(
-                [
-                    coastal_nearby_unresolved,
-                    outside_coastal_scope,
-                ],
-                ignore_index=True,
-            )
-        else:
-            (
-                assigned,
-                unexpected_spatial_unresolved,
-                spatial_audit,
-            ) = assign_geometries_to_watersheds(
-                coastal_points,
-                watersheds,
-                record_cols=record_cols,
-                ws_col="WS_ID",
-                estuary_col="Estuary",
-                include_flag_col="HAS_UNGAGE",
-                include_flag_value=1,
-                predicate="intersects",
-            )
-
-            if not unexpected_spatial_unresolved.empty:
-                unexpected_spatial_unresolved = (
-                    unexpected_spatial_unresolved
-                    .copy()
-                )
-
-                unexpected_spatial_unresolved[
-                    "coastal_scope_status"
-                ] = (
-                    "unexpected_unresolved_after_"
-                    "coastal_intersection"
-                )
-
-            spatial_unresolved = pd.concat(
-                [
-                    coastal_nearby_unresolved,
-                    unexpected_spatial_unresolved,
-                ],
-                ignore_index=True,
-            )
-
-            spatial_audit = pd.concat(
-                [
-                    spatial_audit,
-                    coastal_nearby_unresolved,
-                    outside_coastal_scope,
-                ],
-                ignore_index=True,
-            )
-        spatial_audit.info
-        if WRITE_DEBUG_FILES:
-            spatial_audit.to_csv(
-                "return_dmr_spatial_"
-                "assignment_audit.csv",
-                index=False,
-            )
-
-            spatial_unresolved.to_csv(
-                "return_dmr_coastal_"
-                "unresolved.csv",
-                index=False,
-            )
-
-            outside_coastal_scope.to_csv(
-                "return_dmr_outside_"
-                "coastal_scope.csv",
-                index=False,
-            )
-
-        if not spatial_unresolved.empty:
-            print(
-                "[ReturnFlow] Coastal or near-coastal "
-                "unresolved selected outfall-period rows: "
-                f"{len(spatial_unresolved)}"
-            )
+        selected_volume = float(feature["FLOW_ACFT_MONTH"].sum())
+        accounted = sum([
+            self._unique_volume(assigned, records),
+            self._unique_volume(unlocated, records),
+            self._unique_volume(unresolved, records),
+            self._unique_volume(outside, records),
+        ])
+        if abs(selected_volume - accounted) > max(1e-6, abs(selected_volume) * 1e-10):
+            raise AssertionError(f"Return-flow volume not conserved: selected={selected_volume}; accounted={accounted}")
 
         if assigned.empty:
-            print(
-                "[ReturnFlow] No selected outfalls "
-                "were assigned to eligible "
-                "ungaged coastal watersheds"
-            )
-
-            return pd.DataFrame(
-                columns=REQUIRED_OUT_COLS
-            )
-
-        spatial_duplicates = (
-            assigned.duplicated(
-                subset=record_cols,
-                keep=False,
-            )
-        )
-
-        if spatial_duplicates.any():
-            display_cols = record_cols + [
-                "WS_ID",
-                "Estuary",
-                "candidate_WS_IDs",
-                "candidate_estuaries",
-                "spatial_assignment_method",
-            ]
-
-            display_cols = [
-                col
-                for col in display_cols
-                if col in assigned.columns
-            ]
-
-            raise AssertionError(
-                "Spatial assignment produced more "
-                "than one calculation row for a "
-                "selected outfall-period:\n"
-                + assigned.loc[
-                    spatial_duplicates,
-                    display_cols,
-                ]
-                .head(50)
-                .to_string(index=False)
-            )
-
-        # Flow-volume conservation:
-        #
-        # selected = assigned
-        #            + geometry unresolved
-        #            + coastal spatial unresolved
-        #            + outside coastal scope
-        selected_volume = float(
-            feature_monthly[
-                "FLOW_ACFT_MONTH"
-            ].sum()
-        )
-
-        assigned_volume = (
-            self._unique_volume(
-                assigned,
-                record_cols,
-            )
-        )
-
-        geometry_unresolved_volume = (
-            self._unique_volume(
-                geometry_unresolved,
-                record_cols,
-            )
-        )
-
-        spatial_unresolved_volume = (
-            self._unique_volume(
-                spatial_unresolved,
-                record_cols,
-            )
-        )
-
-        outside_scope_volume = (
-            self._unique_volume(
-                outside_coastal_scope,
-                record_cols,
-            )
-        )
-
-        accounted_volume = (
-            assigned_volume
-            + geometry_unresolved_volume
-            + spatial_unresolved_volume
-            + outside_scope_volume
-        )
-
-        tolerance = max(
-            1e-6,
-            abs(selected_volume) * 1e-10,
-        )
-
-        if abs(
-            selected_volume
-            - accounted_volume
-        ) > tolerance:
-            raise AssertionError(
-                "Return-flow volume was not "
-                "conserved through geometry, coastal "
-                "scope, and spatial assignment. "
-                f"Selected={selected_volume}, "
-                f"assigned={assigned_volume}, "
-                "geometry_unresolved="
-                f"{geometry_unresolved_volume}, "
-                "coastal_spatial_unresolved="
-                f"{spatial_unresolved_volume}, "
-                "outside_coastal_scope="
-                f"{outside_scope_volume}."
-            )
-
-        assigned[
-            "MONITORING_PERIOD_END_DATE"
-        ] = pd.to_datetime(
-            assigned[
-                "MONITORING_PERIOD_END_DATE"
-            ],
-            errors="coerce",
-        )
-
-        assigned["year"] = (
-            assigned[
-                "MONITORING_PERIOD_END_DATE"
-            ].dt.year
-        )
-
-        assigned["month"] = (
-            assigned[
-                "MONITORING_PERIOD_END_DATE"
-            ].dt.month
-        )
-
-        assigned = assigned.dropna(
-            subset=[
-                "WS_ID",
-                "Estuary",
-                "year",
-                "month",
-                "FLOW_ACFT_MONTH",
-            ]
-        )
-
+            return pd.DataFrame(columns=REQUIRED_OUT_COLS)
+        assigned["year"] = assigned["MONITORING_PERIOD_END_DATE"].dt.year
+        assigned["month"] = assigned["MONITORING_PERIOD_END_DATE"].dt.month
         if WRITE_DEBUG_FILES:
-            assigned.to_csv(
-                "return_dmr_outfall_join_audit.csv",
-                index=False,
-            )
+            assigned.to_csv("return_dmr_outfall_join_audit.csv", index=False)
 
-        monthly_ws = (
-            assigned
-            .groupby(
-                [
-                    "WS_ID",
-                    "Estuary",
-                    "year",
-                    "month",
-                ],
-                as_index=False,
-            )
-            .agg(
-                value_acft_month=(
-                    "FLOW_ACFT_MONTH",
-                    "sum",
-                )
-            )
+        monthly = assigned.groupby(["WS_ID", "Estuary", "year", "month"], as_index=False).agg(
+            value_acft_month=("FLOW_ACFT_MONTH", "sum")
         )
-
         daily = expand_monthly_to_daily(
-            monthly_ws.rename(
-                columns={
-                    "value_acft_month": "value",
-                    "WS_ID": "ws_id",
-                    "Estuary": "estuary",
-                }
-            ),
-            year_col="year",
-            month_col="month",
-            value_col="value",
-            id_col="ws_id",
-            estuary_col="estuary",
-            value_is_monthly_total=True,
+            monthly.rename(columns={"value_acft_month": "value", "WS_ID": "ws_id", "Estuary": "estuary"}),
+            year_col="year", month_col="month", value_col="value", id_col="ws_id",
+            estuary_col="estuary", value_is_monthly_total=True,
         )
-
-        if daily.empty:
-            return pd.DataFrame(
-                columns=REQUIRED_OUT_COLS
-            )
-
         daily["value_afday"] = daily["value"]
         daily["id"] = daily["ws_id"]
         daily["id_type"] = "watershed"
@@ -2304,76 +491,27 @@ class ReturnComponent:
         daily["count_in_basin_sum"] = 1
         daily["data_as_of"] = end_ts
         daily["note"] = None
-
         return daily[REQUIRED_OUT_COLS]
 
-    def run(
-        self,
-        start=None,
-        end=None,
-    ):
+    def run(self, start=None, end=None):
         if start is None:
-            watermark = (
-                self.ctx.storage
-                .get_watermark(
-                    self.name,
-                    default="2015-01-01",
-                )
-            )
-
-            start = (
-                watermark
-                + pd.Timedelta(days=1)
-                if watermark is not None
-                else pd.Timestamp(
-                    "2015-01-01"
-                )
-            )
-
+            watermark = self.ctx.storage.get_watermark(self.name, default="2015-01-01")
+            start = watermark + pd.Timedelta(days=1) if watermark is not None else pd.Timestamp("2015-01-01")
         if end is None:
-            end = (
-                pd.Timestamp.utcnow()
-                .normalize()
-            )
-
-        print(
-            f"[ReturnFlow] Running "
-            f"{start} -> {end}"
-        )
-
-        df = self.build(
-            start,
-            end,
-        )
-
-        if df.empty:
-            print(
-                "[ReturnFlow] No rows written"
-            )
-
+            end = pd.Timestamp.utcnow().normalize()
+        print(f"[ReturnFlow] Running {start} -> {end}")
+        frame = self.build(start, end)
+        if frame.empty:
+            print("[ReturnFlow] No rows written")
             return 0
-
-        n_rows = self.ctx.storage.append(
-            df,
-            run_start=start,
-            run_end=end,
-        )
-
-        self.ctx.storage.set_watermark(
-            self.name,
-            df["date"].max(),
-        )
-
-        return n_rows
+        rows = self.ctx.storage.append(frame, run_start=start, run_end=end)
+        self.ctx.storage.set_watermark(self.name, frame["date"].max())
+        return rows
 
 
 def build_return(monthly_df):
-    df = expand_monthly_to_daily(
-        monthly_df
-    )
-
-    df["component"] = "return"
-    df["flow_role"] = "return"
-    df["count_in_basin_sum"] = 1
-
-    return df
+    frame = expand_monthly_to_daily(monthly_df)
+    frame["component"] = "return"
+    frame["flow_role"] = "return"
+    frame["count_in_basin_sum"] = 1
+    return frame
