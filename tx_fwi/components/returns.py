@@ -1653,7 +1653,7 @@ class ReturnComponent:
         start_fy = fiscal_year(start_ts)
         end_fy = fiscal_year(end_ts)
 
-        dmr, limits =self.return_source..load_dmr_and_limits(
+        dmr, limits =self.return_source.load_dmr_and_limits(
             start_fy,
             end_fy,)
 
